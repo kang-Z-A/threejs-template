@@ -113,6 +113,8 @@ const renderer = new THREE.WebGLRenderer({
 })
 const camera = new THREE.PerspectiveCamera(60, containerWidth / containerHeight, 0.1, 10000)
 let orbitControls: OrbitControls | null = null
+const modelGroup = new THREE.Group()
+scene.add(modelGroup)
 
 const stats = new Stats()
 stats.dom.style.position = 'absolute';
@@ -173,7 +175,7 @@ async function loadModels(urls: string[]) {
                     material.roughness = 0.95
                 }
 
-                scene.add(gltf.scene)
+                modelGroup.add(gltf.scene)
                 finished++
                 if (loadingTextEl) {
                     loadingTextEl.textContent = `正在加载模型（${finished}/${count}）...`
@@ -197,25 +199,36 @@ async function loadModels(urls: string[]) {
     })
 }
 
-// let getCenterFromBounding = () => {
-//     const boxHelper = new THREE.BoxHelper(new THREE.Object3D())
-//     boxHelper.setFromObject(scene)
-//     console.log('boxHelper.geometry.boundingSphere => ', boxHelper.geometry.boundingSphere);
-//     console.log('boxHelper.geometry.center() => ', boxHelper.geometry.center());
-//     if (!boxHelper.geometry.boundingSphere) {
-//         console.warn('boxHelper.geometry.boundingSphere is', boxHelper.geometry.boundingSphere);
-//         return
-//     }
-//     let center = boxHelper.geometry.boundingSphere.center
-//     let radius = boxHelper.geometry.boundingSphere.radius
+let getCenterFromBounding = () => {
+    const box = new THREE.Box3().setFromObject(modelGroup)
+    if (box.isEmpty()) {
+        console.warn('Bounding box is empty; skip centering')
+        return
+    }
+    const center = new THREE.Vector3()
+    box.getCenter(center)
+    const sphere = new THREE.Sphere()
+    box.getBoundingSphere(sphere)
+    const radius = Math.max(sphere.radius, 0.001)
 
-//     scene.position.set(-center.x, -center.y, -center.z)
-//     const cameraDistance = radius * 1.8
-//     camera.position.set(cameraDistance, cameraDistance, cameraDistance)
-//     console.log('getCenter centerInitCameraPosition');
+    const verticalFov = THREE.MathUtils.degToRad(camera.fov)
+    const aspect = Math.max(0.0001, camera.aspect)
+    const distanceV = radius / Math.tan(verticalFov / 2)
+    const horizFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect)
+    const distanceH = radius / Math.tan(horizFov / 2)
+    const distance = Math.max(distanceV, distanceH) * 1.2
 
-//     orbitControls && orbitControls.target.set(0, 0, 0)
-// }
+    if (orbitControls) {
+        orbitControls.target.copy(center)
+        orbitControls.update()
+    }
+    const viewDir = new THREE.Vector3(1, 1, 1).normalize()
+    camera.position.copy(center.clone().add(viewDir.multiplyScalar(distance)))
+    camera.near = Math.max(0.1, distance / 1000)
+    camera.far = Math.max(camera.near + 10, distance * 1000)
+    camera.lookAt(center)
+    camera.updateProjectionMatrix()
+}
 
 function addEventListener() {
     document.addEventListener('keydown', (e) => {
@@ -247,7 +260,7 @@ async function initThreeScene(urls: string[]) {
     camera.layers.enableAll();
 
     orbitControls = new OrbitControls(camera, renderer.domElement)
-    orbitControls.enableDamping = true
+    orbitControls.enableDamping = false
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
     scene.add(ambientLight)
@@ -263,8 +276,8 @@ async function initThreeScene(urls: string[]) {
     try {
         if (loadingTextEl) loadingTextEl.textContent = `正在加载模型（0/${urls.length}）...`
         await loadModels(urls)
-        camera.position.set(-67.6362645349833, 20.12828164995113, -60.639791532507246)
-        orbitControls.target.set(-25.722365542810177, -10.018883861887929, -58.37864694433701)      
+        if (loadingTextEl) loadingTextEl.textContent = '正在计算视角...'
+        getCenterFromBounding()
         if (loadingTextEl) loadingTextEl.textContent = '即将开始渲染...'
         renderer.setAnimationLoop(animate)
     } catch (e) {
