@@ -1,9 +1,21 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { MapControls } from 'three/examples/jsm/controls/MapControls'
 import Stats from 'three/examples/jsm/libs/stats.module'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader'
+import useTransformControls from './useTransformControls'
+import GUI from 'three/examples/jsm/libs/lil-gui.module.min'
+import { gsap } from 'gsap'
+import { useComposerHook } from './useComposer'
+const gsapTimeLine = gsap.timeline()
+
+declare global {
+    interface Window {
+        showOpenFilePicker: (options?: { types?: { accept: string }[], multiple?: boolean }) => Promise<FileSystemFileHandle[]>;
+        showDirectoryPicker: (options?: { startIn?: string }) => Promise<FileSystemDirectoryHandle[]>;
+    }
+}
 
 const dropZone = document.getElementById('dropZone') as HTMLElement
 const mainContent = document.querySelector('.main-content') as HTMLElement
@@ -35,6 +47,51 @@ dropZone.addEventListener('drop', async (event: DragEvent) => {
         renderScene(allFiles)
     }
 })
+
+dropZone.addEventListener('click', async () => {
+    try {
+        if ('showOpenFilePicker' in window) {
+            const fileHandles = await window.showOpenFilePicker({ multiple: true });
+            const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
+            console.log('[ All files ] >', files);
+            renderScene(files)
+            // return files;
+        } else {
+            console.error('浏览器不支持 showOpenFilePicker');
+        }
+    } catch (err) {
+        console.error('选择文件失败:', err);
+    }
+})
+
+window.addEventListener('resize', () => {
+    // camera.aspect = viewerContainer.clientWidth / viewerContainer.clientHeight
+    const targetDom = document.getElementById('viewerContainer') as HTMLElement
+    if (!targetDom) return
+    const containerWidth = targetDom.clientWidth
+    const containerHeight = targetDom.clientHeight
+    renderer.setSize(containerWidth, containerHeight)
+    camera.updateProjectionMatrix()
+    renderer.setSize(containerWidth, containerHeight)
+    if (composerApi) {
+        composerApi.resize(containerWidth, containerHeight)
+    }
+})
+
+let gui: GUI | null = null
+function showEditor(length: number = 10) {
+    if (!mapControls) return
+    const { remove, getGui } = useTransformControls({
+        renderer: renderer,
+        camera: camera,
+        scene: scene,
+        controls: mapControls,
+        length: length,
+    })
+    gui = getGui()
+
+    return remove
+}
 
 async function readFiles(entry: FileSystemEntry | FileSystemFileEntry | FileSystemDirectoryEntry) {
     if (entry.isDirectory) {
@@ -112,14 +169,16 @@ const renderer = new THREE.WebGLRenderer({
     preserveDrawingBuffer: true
 })
 const camera = new THREE.PerspectiveCamera(60, containerWidth / containerHeight, 0.1, 10000)
-let orbitControls: OrbitControls | null = null
+let mapControls: MapControls | null = null
 const modelGroup = new THREE.Group()
 scene.add(modelGroup)
+let composerApi: ReturnType<typeof useComposerHook> | null = null
 
 const stats = new Stats()
 stats.dom.style.position = 'absolute';
-stats.dom.style.top = '0px';
-stats.dom.style.left = (containerWidth - 100) + 'px';
+stats.dom.style.top = '60px';
+stats.dom.style.left = '0px';
+stats.dom.style.visibility = 'hidden'
 document.body.appendChild(stats.dom);
 
 let envMapTexture: THREE.Texture | null = null
@@ -131,7 +190,7 @@ async function initEnvMap() {
         pmremGenerator.compileEquirectangularShader();
 
         let loader = new RGBELoader()
-        loader.load('hdr/Cloudy.hdr', function (texture) {
+        loader.load('hdr/rostock_laage_airport_2k.hdr', function (texture) {
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.mapping = THREE.EquirectangularReflectionMapping;
             // 通过PMREMGenerator处理texture生成环境贴图
@@ -149,9 +208,13 @@ async function initEnvMap() {
 
 function animate() {
     camera.updateProjectionMatrix()
-    orbitControls?.update()
+    mapControls?.update()
     stats.update()
-    renderer.render(scene, camera)
+    if (composerApi) {
+        composerApi.composer.render()
+    } else {
+        renderer.render(scene, camera)
+    }
 }
 
 const loader = new GLTFLoader()
@@ -167,13 +230,7 @@ async function loadModels(urls: string[]) {
             loader.load(url, (gltf) => {
                 console.log(`${url} scene`, gltf.scene);
 
-                const target = gltf.scene.getObjectByName("building19_L1002_4")
-                if(target && target instanceof THREE.Mesh){
-                    const material = target.material as THREE.MeshPhysicalMaterial
-                    material.specularIntensity = 0
-                    material.metalness = 0
-                    material.roughness = 0.95
-                }
+                doAfterLoad(gltf.scene, url)
 
                 modelGroup.add(gltf.scene)
                 finished++
@@ -218,9 +275,9 @@ let getCenterFromBounding = () => {
     const distanceH = radius / Math.tan(horizFov / 2)
     const distance = Math.max(distanceV, distanceH) * 1.2
 
-    if (orbitControls) {
-        orbitControls.target.copy(center)
-        orbitControls.update()
+    if (mapControls) {
+        mapControls.target.copy(center)
+        mapControls.update()
     }
     const viewDir = new THREE.Vector3(1, 1, 1).normalize()
     camera.position.copy(center.clone().add(viewDir.multiplyScalar(distance)))
@@ -234,11 +291,12 @@ function addEventListener() {
     document.addEventListener('keydown', (e) => {
         if (e.code === 'Space') {
             console.log('cameraPosition', camera.position);
-            console.log('orbitControls.target', orbitControls?.target);
+            console.log('MapControls.target', mapControls?.target);
         }
     })
 }
 
+let removeEvent: Function | undefined
 async function initThreeScene(urls: string[]) {
     const containerWidth = viewerContainer.clientWidth
     const containerHeight = viewerContainer.clientHeight
@@ -251,6 +309,12 @@ async function initThreeScene(urls: string[]) {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap // 阴影类型
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping
+    // 修改阴影计算函数，增强对比度
+    THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment.replace(
+        'float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {',
+        `float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+                shadowIntensity = shadowIntensity * (1.0 + ${0.2});`
+    )
     viewerContainer.appendChild(renderer.domElement)
 
 
@@ -259,25 +323,68 @@ async function initThreeScene(urls: string[]) {
     camera.lookAt(0, 0, 0)
     camera.layers.enableAll();
 
-    orbitControls = new OrbitControls(camera, renderer.domElement)
-    orbitControls.enableDamping = false
+    mapControls = new MapControls(camera, renderer.domElement)
+    mapControls.enableDamping = false
+    mapControls.screenSpacePanning = false
+
+    // composerApi = useComposerHook({
+    //     renderer,
+    //     scene,
+    //     camera,
+    //     containerWidth,
+    //     containerHeight,
+    //     highlightColor:'#fff',
+    //     useTAA:true,
+    //     TAASampleLevel:2
+    // })
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
     scene.add(ambientLight)
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
-    directionalLight.position.set(1, 1, 1)
+    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 3)
+    directionalLight.position.set(300, 150, 200)
+    directionalLight.castShadow = true
+    directionalLight.shadow.mapSize.width = Math.pow(2, 13); // 保持高分辨率阴影贴图
+    directionalLight.shadow.mapSize.height = Math.pow(2, 13);
+    directionalLight.shadow.blurSamples = 8; // 增加模糊采样数量以获得更柔和的阴影边缘
+    const length = 200
+    directionalLight.shadow.camera.left = -length
+    directionalLight.shadow.camera.right = length
+    directionalLight.shadow.camera.top = length
+    directionalLight.shadow.camera.bottom = -length
+    directionalLight.shadow.camera.far = 500
+    directionalLight.shadow.camera.near = 300
+    directionalLight.shadow.radius = 2
+    directionalLight.shadow.bias = -0.0015
     scene.add(directionalLight)
 
     //初始化背景
     initEnvMap()
     addEventListener()
+    removeEvent = showEditor(1)
+    addMapControlsGui()
+    stats.dom.style.visibility = 'visible'
+    viewerContainer.addEventListener('dblclick', addRaycaster)
+
 
     try {
         if (loadingTextEl) loadingTextEl.textContent = `正在加载模型（0/${urls.length}）...`
         await loadModels(urls)
         if (loadingTextEl) loadingTextEl.textContent = '正在计算视角...'
+        // getCenterFromBounding()
         getCenterFromBounding()
+        let position = {
+            "x": -38.1035078849931,
+            "y": 2.6764456514848263,
+            "z": -58.96259276014798
+        }
+        camera.position.set(position.x, position.y, position.z)
+        position = {
+            "x": -41.51088325890221,
+            "y": 2.377209136262537,
+            "z": -48.9939838587306
+        }
+        mapControls!.target.set(position.x, position.y, position.z)
         if (loadingTextEl) loadingTextEl.textContent = '即将开始渲染...'
         renderer.setAnimationLoop(animate)
     } catch (e) {
@@ -285,4 +392,202 @@ async function initThreeScene(urls: string[]) {
     } finally {
         if (loadingOverlay) loadingOverlay.classList.remove('active')
     }
+}
+
+function addMapControlsGui() {
+    if (!gui || !mapControls) return
+    const mapControlsFolder = gui.addFolder('MapControls')
+    mapControlsFolder.add(mapControls, 'enableDamping').name('enableDamping')
+    mapControlsFolder.add(mapControls, 'screenSpacePanning').name('screenSpacePanning')
+    mapControlsFolder.add(mapControls, 'dampingFactor').name('dampingFactor').min(0).max(1).step(0.01)
+    mapControlsFolder.add(mapControls, 'panSpeed').name('panSpeed').min(0).max(10).step(0.01)
+    mapControlsFolder.add(mapControls, 'rotateSpeed').name('rotateSpeed').min(0).max(10).step(0.01)
+    mapControlsFolder.add(mapControls, 'zoomSpeed').name('zoomSpeed').min(0).max(10).step(0.01)
+    mapControlsFolder.close()
+}
+
+const pos = new THREE.Vector3()
+function addRaycaster(event: MouseEvent) {
+    event.preventDefault()
+
+    const mouse = new THREE.Vector2()
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+    mouse.y = - (event.clientY / window.innerHeight) * 2 + 1
+    const raycaster = new THREE.Raycaster()
+    raycaster.setFromCamera(mouse, camera)
+    const intersects = raycaster.intersectObjects(scene.children)
+    // console.log(intersects)
+    if (intersects.length > 0) {
+        const object = intersects[0].object
+        console.log('射线拾取到物体：', object)
+
+        object.getWorldPosition(pos)
+        const unitVector = new THREE.Vector3().subVectors(pos, camera.position).normalize()
+        const pos2 = pos.clone().add(unitVector.multiplyScalar(-3))
+
+        if (!mapControls) return
+        gsapTimeLine.kill()
+        gsapTimeLine.to(camera.position, {
+            x: pos2.x,
+            y: pos2.y,
+            z: pos2.z,
+            duration: 0.5,
+            ease: 'power2.inOut'
+        })
+        gsapTimeLine.to(mapControls!.target, {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z,
+            duration: 0.5,
+            ease: 'power2.inOut'
+        })
+        gsapTimeLine.play()
+    }
+}
+
+// { x:-35.04560543736986, y:5.525605617251738, z:-54.4983522125491 },
+// { x:-41.284753900624075, y:4.7770173140838175, z:-56.821598332646516 },
+// { x:-46.3147914475632, y:4.923272185883855, z:-54.06564089227556 },
+// { x:-39.89443344077032, y:0.10530759300673465, z:-53.995329363649034 }
+let execCoutn = 0, center = { x: -39.89443344077032, y: 0.10530759300673465, z: -53.995329363649034 }
+function doAfterLoad(group: THREE.Group, _url: string) {
+    if (execCoutn > 0) return
+    execCoutn++
+
+    const lightBox = new THREE.Group()
+    lightBox.name = 'lightBox'
+    group.add(lightBox)
+    let position = { x: -35.04560543736986, y: 1.125605617251738, z: -54.4983522125491 }
+
+    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 0.1)
+    // const directionalLight = new THREE.SpotLight(0xfffdf6)
+    directionalLight.position.set(position.x, position.y, position.z)
+    // directionalLight.target.position.set(position.x, position.y - 10, position.z)
+    directionalLight.target.position.set(center.x, center.y, center.z)
+    lightBox.add(directionalLight.target)
+    lightBox.add(directionalLight)
+
+    const directionalLight2 = new THREE.DirectionalLight(0xfffdf6, 1.2)
+    position = { x: -39.75941112689964, y: 0.937708701278898, z: -56.669197007802374 }
+    directionalLight2.position.set(position.x, position.y, position.z)
+    // directionalLight2.target.position.set(center.x, center.y, center.z)
+    directionalLight2.target.position.set(position.x, position.y - 10, position.z)
+    lightBox.add(directionalLight2)
+    lightBox.add(directionalLight2.target)
+    addLightShadow(directionalLight2)
+
+    position = { x: -45.83234042693757, y: 1.065550923889952, z: -55.56383205194379 }
+    const directionalLight3 = new THREE.DirectionalLight(0xfffdf6, 0.3)
+    directionalLight3.position.set(position.x, position.y, position.z)
+    directionalLight3.target.position.set(center.x, center.y, center.z)
+    // directionalLight3.target.position.set(position.x, position.y - 10, position.z)
+    lightBox.add(directionalLight3)
+    lightBox.add(directionalLight3.target)
+
+    position = { x: -39.05940797553133, y: 3.5377071623107232, z: -55.97849506956587 }
+    const directionalLight4 = new THREE.DirectionalLight(0xfffdf6, 0.4)
+    directionalLight4.position.set(position.x, position.y, position.z)
+    directionalLight4.target.position.set(center.x, center.y, center.z)
+    lightBox.add(directionalLight4)
+    lightBox.add(directionalLight4.target)
+
+    if (gui) {
+        const directionalLightFolder = gui.addFolder('directionalLight')
+        directionalLightFolder.add(directionalLight.target.position, 'x').min(-100).max(100).step(0.1)
+        directionalLightFolder.add(directionalLight.target.position, 'y').min(-100).max(100).step(0.1)
+        directionalLightFolder.add(directionalLight.target.position, 'z').min(-100).max(100).step(0.1)
+        directionalLightFolder.add(directionalLight, 'castShadow').name('light1_castShadow').onChange(function (val: boolean) {
+            if (val) {
+                addLightShadow(directionalLight)
+            } else {
+                directionalLight.shadow.dispose()
+                directionalLight.castShadow = false
+            }
+        })
+        directionalLightFolder.add(directionalLight2, 'castShadow').name('light2_castShadow').onChange(function (val: boolean) {
+            if (val) {
+                addLightShadow(directionalLight2)
+            } else {
+                directionalLight2.shadow.dispose()
+                directionalLight2.castShadow = false
+            }
+        })
+        directionalLightFolder.add(directionalLight3, 'castShadow').name('light3_castShadow').onChange(function (val: boolean) {
+            if (val) {
+                addLightShadow(directionalLight3)
+            } else {
+                directionalLight3.shadow.dispose()
+                directionalLight3.castShadow = false
+            }
+        })
+        directionalLightFolder.add(directionalLight4, 'castShadow').name('light4_castShadow').onChange(function (val: boolean) {
+            if (val) {
+                addLightShadow(directionalLight4)
+            } else {
+                directionalLight4.shadow.dispose()
+                directionalLight4.castShadow = false
+            }
+        })
+        directionalLightFolder.add(directionalLight.shadow, 'blurSamples').min(0).max(10).step(1).onChange(val => {
+            directionalLight2.shadow.blurSamples = val
+        })
+        directionalLightFolder.add(directionalLight.shadow, 'bias').min(0).max(1).step(0.00001).onChange(val => {
+            directionalLight2.shadow.bias = val
+        })
+        directionalLightFolder.add(directionalLight.shadow, 'radius').min(0).max(10).step(0.01).onChange(val => {
+            directionalLight2.shadow.radius = val
+        })
+        directionalLightFolder.add(directionalLight, 'intensity').name('light1_intensity').min(0).max(3).step(0.1)
+        directionalLightFolder.add(directionalLight2, 'intensity').name('light2_intensity').min(0).max(3).step(0.1)
+        directionalLightFolder.add(directionalLight3, 'intensity').name('light3_intensity').min(0).max(3).step(0.1)
+        directionalLightFolder.add(directionalLight4, 'intensity').name('light4_intensity').min(0).max(3).step(0.1)
+        directionalLightFolder.open()
+    }
+
+    group.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+            child.receiveShadow = true
+            child.castShadow = true
+
+            if (!Array.isArray(child.material)) {
+                const mat = child.material as THREE.MeshStandardMaterial
+                mat.envMap = envMapTexture
+                if (mat.name === '新新冷灰') {
+                    mat.envMapIntensity = 0.25
+                } else {
+                    mat.envMapIntensity = 0.75
+                }
+            }
+
+            // if (child.name === 'equ_1_2002_2') {
+            //     const mat = child.material as THREE.MeshStandardMaterial
+            //     const newMat = new THREE.MeshPhysicalMaterial(mat)
+            //     newMat.metalness = 0.9
+            //     newMat.roughness = 0.1
+            //     newMat.reflectivity = 2.0
+            //     child.material = newMat
+            //     mat.dispose()
+            // }
+        }
+    })
+}
+
+function addLightShadow(light: THREE.DirectionalLight) {
+    light.castShadow = true
+    light.shadow.mapSize.width = Math.pow(2, 13); // 保持高分辨率阴影贴图
+    light.shadow.mapSize.height = Math.pow(2, 13);
+    light.shadow.blurSamples = 4; // 增加模糊采样数量以获得更柔和的阴影边缘
+
+    const d = 10
+    light.shadow.camera.left = -d
+    light.shadow.camera.right = d
+    light.shadow.camera.top = d
+    light.shadow.camera.bottom = -d
+    light.shadow.bias = -0.0005
+
+    light.shadow.camera.far = 10
+    light.shadow.camera.near = 0.01
+    light.shadow.radius = 2
+    // const lightHelper = new THREE.CameraHelper(light.shadow.camera)
+    // scene.add(lightHelper)
 }

@@ -43,8 +43,7 @@ type ComposerOptions = {
 
 export function useComposerHook(options: ComposerOptions) {
     const { renderer, scene, camera, containerWidth, containerHeight, highlightColor,
-        useOutline, useGammaCorrection, useFXAA, useEdgeDetection, useLuminance, useDownSampling,
-        useUpSampling, useTAA, TAASampleLevel, useSMAA } = options
+        useOutline, useGammaCorrection, useFXAA, useTAA, TAASampleLevel, useSMAA } = options
 
     let outlinePass: OutlinePass | undefined
     let composer: EffectComposer | undefined

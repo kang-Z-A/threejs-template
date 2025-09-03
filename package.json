@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@types/three": "*",
+    "gsap": "^3.13.0",
     "three": "*"
   },
   "devDependencies": {
