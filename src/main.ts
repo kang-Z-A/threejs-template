@@ -182,6 +182,7 @@ stats.dom.style.visibility = 'hidden'
 document.body.appendChild(stats.dom);
 
 let envMapTexture: THREE.Texture | null = null
+let envMapTexture2: THREE.Texture | null = null
 let environmentIntensity = 1.0
 async function initEnvMap() {
     return new Promise((resolve, _reject) => {
@@ -190,19 +191,27 @@ async function initEnvMap() {
         pmremGenerator.compileEquirectangularShader();
 
         let loader = new RGBELoader()
-        loader.load('hdr/rostock_laage_airport_2k.hdr', function (texture) {
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.mapping = THREE.EquirectangularReflectionMapping;
+
+        loader.load('hdr/studio_small_06_2k.hdr', function (texture0) {
+            texture0.colorSpace = THREE.SRGBColorSpace;
+            texture0.mapping = THREE.EquirectangularReflectionMapping;
             // 通过PMREMGenerator处理texture生成环境贴图
-            envMapTexture = pmremGenerator.fromEquirectangular(texture).texture;
-            // 设置场景的环境贴图
-            scene.environment = envMapTexture;
-            scene.environmentIntensity = environmentIntensity ?? 1.0;
-            // 释放pmremGenerator的资源
-            console.log('环境贴图解析配置完成');
-            pmremGenerator.dispose();
-            resolve('环境贴图解析配置完成')
-        });
+            envMapTexture2 = pmremGenerator.fromEquirectangular(texture0).texture;
+
+            loader.load('hdr/rostock_laage_airport_2k.hdr', function (texture) {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                // 通过PMREMGenerator处理texture生成环境贴图
+                envMapTexture = pmremGenerator.fromEquirectangular(texture).texture;
+                // 设置场景的环境贴图
+                scene.environment = envMapTexture;
+                scene.environmentIntensity = environmentIntensity ?? 1.0;
+                // 释放pmremGenerator的资源
+                console.log('环境贴图解析配置完成');
+                pmremGenerator.dispose();
+                resolve('环境贴图解析配置完成')
+            });
+        })
     })
 }
 
@@ -309,12 +318,13 @@ async function initThreeScene(urls: string[]) {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap // 阴影类型
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 0.8
     // 修改阴影计算函数，增强对比度
-    THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment.replace(
-        'float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {',
-        `float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
-                shadowIntensity = shadowIntensity * (1.0 + ${0.2});`
-    )
+    // THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment.replace(
+    //     'float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {',
+    //     `float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+    //             shadowIntensity = shadowIntensity * (1.0 + ${0.2});`
+    // )
     viewerContainer.appendChild(renderer.domElement)
 
 
@@ -397,8 +407,8 @@ async function initThreeScene(urls: string[]) {
 function addMapControlsGui() {
     if (!gui || !mapControls) return
     const mapControlsFolder = gui.addFolder('MapControls')
-    mapControlsFolder.add(mapControls, 'enableDamping').name('enableDamping')
-    mapControlsFolder.add(mapControls, 'screenSpacePanning').name('screenSpacePanning')
+    mapControlsFolder.add(mapControls, 'enableDamping').name('开启阻尼')
+    mapControlsFolder.add(mapControls, 'screenSpacePanning').name('左键屏幕空间移动')
     mapControlsFolder.add(mapControls, 'dampingFactor').name('dampingFactor').min(0).max(1).step(0.01)
     mapControlsFolder.add(mapControls, 'panSpeed').name('panSpeed').min(0).max(10).step(0.01)
     mapControlsFolder.add(mapControls, 'rotateSpeed').name('rotateSpeed').min(0).max(10).step(0.01)
@@ -445,24 +455,15 @@ function addRaycaster(event: MouseEvent) {
     }
 }
 
-// { x:-35.04560543736986, y:5.525605617251738, z:-54.4983522125491 },
-// { x:-41.284753900624075, y:4.7770173140838175, z:-56.821598332646516 },
-// { x:-46.3147914475632, y:4.923272185883855, z:-54.06564089227556 },
-// { x:-39.89443344077032, y:0.10530759300673465, z:-53.995329363649034 }
 let execCoutn = 0, center = { x: -39.89443344077032, y: 0.10530759300673465, z: -53.995329363649034 }
-function doAfterLoad(group: THREE.Group, _url: string) {
-    if (execCoutn > 0) return
-    execCoutn++
-
+let lightFolder = null as GUI | null
+function addLight(group:THREE.Group) {
     const lightBox = new THREE.Group()
     lightBox.name = 'lightBox'
-    group.add(lightBox)
     let position = { x: -35.04560543736986, y: 1.125605617251738, z: -54.4983522125491 }
 
-    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 0.1)
-    // const directionalLight = new THREE.SpotLight(0xfffdf6)
+    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 3)
     directionalLight.position.set(position.x, position.y, position.z)
-    // directionalLight.target.position.set(position.x, position.y - 10, position.z)
     directionalLight.target.position.set(center.x, center.y, center.z)
     lightBox.add(directionalLight.target)
     lightBox.add(directionalLight)
@@ -484,7 +485,7 @@ function doAfterLoad(group: THREE.Group, _url: string) {
     lightBox.add(directionalLight3)
     lightBox.add(directionalLight3.target)
 
-    position = { x: -39.05940797553133, y: 3.5377071623107232, z: -55.97849506956587 }
+    position = { x: -41.284753900624075, y: 4.7770173140838175, z: -56.821598332646516 }
     const directionalLight4 = new THREE.DirectionalLight(0xfffdf6, 0.4)
     directionalLight4.position.set(position.x, position.y, position.z)
     directionalLight4.target.position.set(center.x, center.y, center.z)
@@ -492,11 +493,11 @@ function doAfterLoad(group: THREE.Group, _url: string) {
     lightBox.add(directionalLight4.target)
 
     if (gui) {
-        const directionalLightFolder = gui.addFolder('directionalLight')
-        directionalLightFolder.add(directionalLight.target.position, 'x').min(-100).max(100).step(0.1)
-        directionalLightFolder.add(directionalLight.target.position, 'y').min(-100).max(100).step(0.1)
-        directionalLightFolder.add(directionalLight.target.position, 'z').min(-100).max(100).step(0.1)
-        directionalLightFolder.add(directionalLight, 'castShadow').name('light1_castShadow').onChange(function (val: boolean) {
+        const directionalLightFolder = gui.addFolder('平行光')
+        directionalLightFolder.add(directionalLight2.target.position, 'x').name('阴影目标X').min(-100).max(100).step(0.1)
+        directionalLightFolder.add(directionalLight2.target.position, 'y').name('阴影目标Y').min(-100).max(100).step(0.1)
+        directionalLightFolder.add(directionalLight2.target.position, 'z').name('阴影目标Z').min(-100).max(100).step(0.1)
+        directionalLightFolder.add(directionalLight, 'castShadow').name('light1_castShadow').name('灯光1投射阴影').onChange(function (val: boolean) {
             if (val) {
                 addLightShadow(directionalLight)
             } else {
@@ -504,7 +505,7 @@ function doAfterLoad(group: THREE.Group, _url: string) {
                 directionalLight.castShadow = false
             }
         })
-        directionalLightFolder.add(directionalLight2, 'castShadow').name('light2_castShadow').onChange(function (val: boolean) {
+        directionalLightFolder.add(directionalLight2, 'castShadow').name('light2_castShadow').name('灯光2投射阴影').onChange(function (val: boolean) {
             if (val) {
                 addLightShadow(directionalLight2)
             } else {
@@ -512,7 +513,7 @@ function doAfterLoad(group: THREE.Group, _url: string) {
                 directionalLight2.castShadow = false
             }
         })
-        directionalLightFolder.add(directionalLight3, 'castShadow').name('light3_castShadow').onChange(function (val: boolean) {
+        directionalLightFolder.add(directionalLight3, 'castShadow').name('light3_castShadow').name('灯光3投射阴影').onChange(function (val: boolean) {
             if (val) {
                 addLightShadow(directionalLight3)
             } else {
@@ -520,7 +521,7 @@ function doAfterLoad(group: THREE.Group, _url: string) {
                 directionalLight3.castShadow = false
             }
         })
-        directionalLightFolder.add(directionalLight4, 'castShadow').name('light4_castShadow').onChange(function (val: boolean) {
+        directionalLightFolder.add(directionalLight4, 'castShadow').name('light4_castShadow').name('灯光4投射阴影').onChange(function (val: boolean) {
             if (val) {
                 addLightShadow(directionalLight4)
             } else {
@@ -528,21 +529,47 @@ function doAfterLoad(group: THREE.Group, _url: string) {
                 directionalLight4.castShadow = false
             }
         })
-        directionalLightFolder.add(directionalLight.shadow, 'blurSamples').min(0).max(10).step(1).onChange(val => {
-            directionalLight2.shadow.blurSamples = val
-        })
-        directionalLightFolder.add(directionalLight.shadow, 'bias').min(0).max(1).step(0.00001).onChange(val => {
-            directionalLight2.shadow.bias = val
-        })
-        directionalLightFolder.add(directionalLight.shadow, 'radius').min(0).max(10).step(0.01).onChange(val => {
-            directionalLight2.shadow.radius = val
-        })
-        directionalLightFolder.add(directionalLight, 'intensity').name('light1_intensity').min(0).max(3).step(0.1)
-        directionalLightFolder.add(directionalLight2, 'intensity').name('light2_intensity').min(0).max(3).step(0.1)
-        directionalLightFolder.add(directionalLight3, 'intensity').name('light3_intensity').min(0).max(3).step(0.1)
-        directionalLightFolder.add(directionalLight4, 'intensity').name('light4_intensity').min(0).max(3).step(0.1)
+        // directionalLightFolder.add(directionalLight.shadow, 'blurSamples').min(0).max(10).step(1).onChange(val => {
+        //     directionalLight2.shadow.blurSamples = val
+        // })
+        // directionalLightFolder.add(directionalLight.shadow, 'bias').min(0).max(1).step(0.00001).onChange(val => {
+        //     directionalLight2.shadow.bias = val
+        // })
+        // directionalLightFolder.add(directionalLight.shadow, 'radius').min(0).max(10).step(0.01).onChange(val => {
+        //     directionalLight2.shadow.radius = val
+        // })
+        directionalLightFolder.add(directionalLight, 'intensity').name('灯光1强度').min(0).max(3).step(0.1)
+        directionalLightFolder.add(directionalLight2, 'intensity').name('灯光2强度').min(0).max(3).step(0.1)
+        directionalLightFolder.add(directionalLight3, 'intensity').name('灯光3强度').min(0).max(3).step(0.1)
+        directionalLightFolder.add(directionalLight4, 'intensity').name('灯光4强度').min(0).max(3).step(0.1)
         directionalLightFolder.open()
+        lightFolder = directionalLightFolder
     }
+
+    return lightBox
+}
+
+let lightBox = null as THREE.Group | null
+const options = {
+    showLight:false
+}
+function doAfterLoad(group: THREE.Group, _url: string) {
+    if (execCoutn > 0) return
+    execCoutn++
+
+    lightBox = addLight(group)
+    if(gui){
+        gui.add(options, 'showLight').name('showLight').name('展示污泥脱水间灯光').onChange(val => {
+            if (val) {
+                lightBox && group.add(lightBox)
+                lightFolder?.show()
+            } else {
+                lightBox && group.remove(lightBox)
+                lightFolder?.hide()
+            }
+        })
+    }
+    // addLight(group)
 
     group.traverse(child => {
         if (child instanceof THREE.Mesh) {
@@ -551,10 +578,12 @@ function doAfterLoad(group: THREE.Group, _url: string) {
 
             if (!Array.isArray(child.material)) {
                 const mat = child.material as THREE.MeshStandardMaterial
-                mat.envMap = envMapTexture
-                if (mat.name === '新新冷灰') {
+                const materialNames = ['equ_1_metal_white.002', '新新冷灰']
+                if (materialNames.includes(mat.name)) {
+                    mat.envMap = envMapTexture
                     mat.envMapIntensity = 0.25
                 } else {
+                    mat.envMap = envMapTexture
                     mat.envMapIntensity = 0.75
                 }
             }
