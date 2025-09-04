@@ -7,6 +7,7 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader'
 import useTransformControls from './useTransformControls'
 import GUI from 'three/examples/jsm/libs/lil-gui.module.min'
 import { gsap } from 'gsap'
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { useComposerHook } from './useComposer'
 const gsapTimeLine = gsap.timeline()
 
@@ -322,12 +323,13 @@ async function initThreeScene(urls: string[]) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 0.8
-    // 修改阴影计算函数，增强对比度
-    // THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment.replace(
-    //     'float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {',
-    //     `float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
-    //             shadowIntensity = shadowIntensity * (1.0 + ${0.2});`
-    // )
+    // 修改阴影计算函数，增强对比度并进行标准化处理
+    THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment.replace(
+        'float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {',
+        `float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+                // 增强阴影强度但限制在合理范围内
+                shadowIntensity = clamp(shadowIntensity * (1.0 + ${0.9}), 0.0, 1.0);`
+    )
     viewerContainer.appendChild(renderer.domElement)
 
 
@@ -348,13 +350,14 @@ async function initThreeScene(urls: string[]) {
         containerHeight,
         highlightColor: '#fff',
         useTAA: true,
-        TAASampleLevel: 1
+        TAASampleLevel: 1,
+        // useSSAO: true
     })
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
     scene.add(ambientLight)
 
-    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 3)
+    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 5)
     directionalLight.position.set(300, 150, 200)
     directionalLight.castShadow = true
     directionalLight.shadow.mapSize.width = Math.pow(2, 13); // 保持高分辨率阴影贴图
@@ -375,7 +378,16 @@ async function initThreeScene(urls: string[]) {
     initEnvMap()
     addEventListener()
     removeEvent = showEditor(1)
+
+    if (gui) {
+        const outdoorLightFolder = gui.addFolder('室外平行光')
+        outdoorLightFolder.add(directionalLight, 'intensity').name('灯光强度').min(0).max(15).step(0.1)
+        outdoorLightFolder.add(directionalLight.shadow, 'bias').name('bias').min(-0.5).max(0.5).step(0.0000001)
+        outdoorLightFolder.close()
+    }
+
     addMapControlsGui()
+    // addComposerGui()
     stats.dom.style.visibility = 'visible'
     viewerContainer.addEventListener('dblclick', addRaycaster)
 
@@ -416,6 +428,19 @@ function addMapControlsGui() {
     mapControlsFolder.add(mapControls, 'rotateSpeed').name('rotateSpeed').min(0).max(10).step(0.01)
     mapControlsFolder.add(mapControls, 'zoomSpeed').name('zoomSpeed').min(0).max(10).step(0.01)
     mapControlsFolder.close()
+}
+
+function addComposerGui() {
+    if (!gui || !composerApi) return
+    const composerFolder = gui.addFolder('后处理')
+    if (composerApi.ssaoPass) {
+        composerFolder.add(composerApi.ssaoPass, 'kernelRadius').name('kernelRadius').min(0).max(64).step(0.1)
+        composerFolder.add(composerApi.ssaoPass, 'minDistance').name('minDistance').min(0.001).max(0.2).step(0.001)
+        composerFolder.add(composerApi.ssaoPass, 'maxDistance').name('maxDistance').min(0.01).max(1.0).step(0.0001)
+        composerFolder.add(composerApi.ssaoPass, 'enabled').name('启用')
+    }
+    composerApi.ssaoPass!.output = SSAOPass.OUTPUT.SSAO
+    composerFolder.close()
 }
 
 const pos = new THREE.Vector3()
@@ -495,7 +520,7 @@ function addLight(group: THREE.Group) {
     lightBox.add(directionalLight4.target)
 
     if (gui) {
-        const directionalLightFolder = gui.addFolder('平行光')
+        const directionalLightFolder = gui.addFolder('室内平行光')
         directionalLightFolder.add(directionalLight2.target.position, 'x').name('阴影目标X').min(-100).max(100).step(0.1)
         directionalLightFolder.add(directionalLight2.target.position, 'y').name('阴影目标Y').min(-100).max(100).step(0.1)
         directionalLightFolder.add(directionalLight2.target.position, 'z').name('阴影目标Z').min(-100).max(100).step(0.1)
@@ -551,7 +576,7 @@ function addLight(group: THREE.Group) {
     return lightBox
 }
 
-const views = [    
+const views = [
     //污泥脱水间视角
     {
         cameraPosition: {

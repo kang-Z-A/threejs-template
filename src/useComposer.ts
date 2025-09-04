@@ -8,6 +8,7 @@ import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShade
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { TAARenderPass } from 'three/addons/postprocessing/TAARenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 
 export type ComposerCustomOptions = {
   /** 是否使用描边，默认为true */
@@ -29,7 +30,9 @@ export type ComposerCustomOptions = {
   /** TAA抗锯齿采样等级，默认1 */
   TAASampleLevel?:number,
   /** 是否使用SMAA抗锯齿，默认为false */
-  useSMAA?:boolean
+  useSMAA?:boolean,
+  /** 是否使用SSAO环境光遮蔽，默认为false */
+  useSSAO?:boolean
 }
 
 type ComposerOptions = {
@@ -43,7 +46,7 @@ type ComposerOptions = {
 
 export function useComposerHook(options: ComposerOptions) {
     const { renderer, scene, camera, containerWidth, containerHeight, highlightColor,
-        useOutline, useGammaCorrection, useFXAA, useTAA, TAASampleLevel, useSMAA } = options
+        useOutline, useGammaCorrection, useFXAA, useTAA, TAASampleLevel, useSMAA, useSSAO } = options
 
     let outlinePass: OutlinePass | undefined
     let composer: EffectComposer | undefined
@@ -52,6 +55,7 @@ export function useComposerHook(options: ComposerOptions) {
     let taaPass: TAARenderPass | undefined
     let smaaPass: SMAAPass | undefined
     let outputPass: OutputPass | undefined
+    let ssaoPass: SSAOPass | undefined
 
     /**
     * 模型描线默认配置
@@ -105,6 +109,12 @@ export function useComposerHook(options: ComposerOptions) {
         composer.addPass(smaaPass);
     }
 
+    if(useSSAO){
+        ssaoPass = new SSAOPass(scene, camera, containerWidth, containerHeight);
+        composer.addPass(ssaoPass);
+    }
+
+
     if (useOutline) {
         const v2 = new THREE.Vector2(containerWidth, containerHeight)
         outlinePass = new OutlinePass(v2, scene, camera)
@@ -135,6 +145,9 @@ export function useComposerHook(options: ComposerOptions) {
 
         smaaPass?.dispose()
         smaaPass = undefined
+
+        ssaoPass?.dispose()
+        ssaoPass = undefined
     }
 
     function resize(width: number, height: number) {
@@ -152,6 +165,7 @@ export function useComposerHook(options: ComposerOptions) {
         effectFXAA,
         taaPass,
         smaaPass,
+        ssaoPass,
         dispose,
         resize
     }
