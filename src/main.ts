@@ -17,6 +17,7 @@ declare global {
     }
 }
 
+const header = document.querySelector('.header') as HTMLElement
 const dropZone = document.getElementById('dropZone') as HTMLElement
 const mainContent = document.querySelector('.main-content') as HTMLElement
 const viewerContainer = document.getElementById('viewerContainer') as HTMLElement
@@ -130,6 +131,7 @@ function renderScene(files: File[]) {
     //展示三维场景
     viewerContainer.classList.add('active')
     mainContent.style.display = 'none'
+    header.style.display = 'none'
     if (loadingOverlay) loadingOverlay.classList.add('active')
     if (loadingTextEl) loadingTextEl.textContent = '正在准备渲染...'
     setTimeout(() => {
@@ -176,7 +178,7 @@ let composerApi: ReturnType<typeof useComposerHook> | null = null
 
 const stats = new Stats()
 stats.dom.style.position = 'absolute';
-stats.dom.style.top = '60px';
+stats.dom.style.top = '0px';
 stats.dom.style.left = '0px';
 stats.dom.style.visibility = 'hidden'
 document.body.appendChild(stats.dom);
@@ -238,6 +240,7 @@ async function loadModels(urls: string[]) {
         for (const url of urls) {
             loader.load(url, (gltf) => {
                 console.log(`${url} scene`, gltf.scene);
+                gltf.scene.scale.set(0.01, 0.01, 0.01)
 
                 doAfterLoad(gltf.scene, url)
 
@@ -337,16 +340,16 @@ async function initThreeScene(urls: string[]) {
     mapControls.enableDamping = false
     mapControls.screenSpacePanning = false
 
-    // composerApi = useComposerHook({
-    //     renderer,
-    //     scene,
-    //     camera,
-    //     containerWidth,
-    //     containerHeight,
-    //     highlightColor:'#fff',
-    //     useTAA:true,
-    //     TAASampleLevel:2
-    // })
+    composerApi = useComposerHook({
+        renderer,
+        scene,
+        camera,
+        containerWidth,
+        containerHeight,
+        highlightColor:'#fff',
+        useTAA:true,
+        TAASampleLevel:1
+    })
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
     scene.add(ambientLight)
@@ -406,7 +409,7 @@ async function initThreeScene(urls: string[]) {
 
 function addMapControlsGui() {
     if (!gui || !mapControls) return
-    const mapControlsFolder = gui.addFolder('MapControls')
+    const mapControlsFolder = gui.addFolder('控制器')
     mapControlsFolder.add(mapControls, 'enableDamping').name('开启阻尼')
     mapControlsFolder.add(mapControls, 'screenSpacePanning').name('左键屏幕空间移动')
     mapControlsFolder.add(mapControls, 'dampingFactor').name('dampingFactor').min(0).max(1).step(0.01)
@@ -551,7 +554,8 @@ function addLight(group:THREE.Group) {
 
 let lightBox = null as THREE.Group | null
 const options = {
-    showLight:false
+    showLight:false,
+    showStats:true
 }
 function doAfterLoad(group: THREE.Group, _url: string) {
     if (execCoutn > 0) return
@@ -559,13 +563,20 @@ function doAfterLoad(group: THREE.Group, _url: string) {
 
     lightBox = addLight(group)
     if(gui){
-        gui.add(options, 'showLight').name('showLight').name('展示污泥脱水间灯光').onChange(val => {
+        gui.add(options, 'showLight').name('展示污泥脱水间灯光').onChange(val => {
             if (val) {
                 lightBox && group.add(lightBox)
                 lightFolder?.show()
             } else {
                 lightBox && group.remove(lightBox)
                 lightFolder?.hide()
+            }
+        })
+        gui.add(options, 'showStats').name('性能监视器').onChange(val => {
+            if(val){
+                stats.dom.style.visibility = 'visible'
+            }else{
+                stats.dom.style.visibility = 'hidden'
             }
         })
     }

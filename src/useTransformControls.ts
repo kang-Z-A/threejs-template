@@ -71,7 +71,7 @@ function useTransformControls(options: Options) {
     function init() {
         gui = new GUI();
 
-        const transformControlsFolder = gui.addFolder('TransformControls')
+        const transformControlsFolder = gui.addFolder('坐标拾取控制器')
         transformControlsFolder.add(params, 'uniform').onChange(render);
         transformControlsFolder.add(params, 'tension', 0, 1).step(0.01).onChange(function (value) {
             if (splines.uniform) {
@@ -89,6 +89,7 @@ function useTransformControls(options: Options) {
         transformControlsFolder.add(params, 'addPoint');
         transformControlsFolder.add(params, 'removePoint');
         transformControlsFolder.add(params, 'exportSpline');
+        transformControlsFolder.close()
         gui.open();
 
 
