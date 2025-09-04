@@ -240,7 +240,7 @@ async function loadModels(urls: string[]) {
         for (const url of urls) {
             loader.load(url, (gltf) => {
                 console.log(`${url} scene`, gltf.scene);
-                gltf.scene.scale.set(0.01, 0.01, 0.01)
+                // gltf.scene.scale.set(0.01, 0.01, 0.01)
 
                 doAfterLoad(gltf.scene, url)
 
