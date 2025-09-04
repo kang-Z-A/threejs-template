@@ -285,7 +285,7 @@ let getCenterFromBounding = () => {
     const distanceV = radius / Math.tan(verticalFov / 2)
     const horizFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect)
     const distanceH = radius / Math.tan(horizFov / 2)
-    const distance = Math.max(distanceV, distanceH) * 1.2
+    const distance = Math.max(distanceV, distanceH) * 1.1
 
     if (mapControls) {
         mapControls.target.copy(center)
@@ -346,9 +346,9 @@ async function initThreeScene(urls: string[]) {
         camera,
         containerWidth,
         containerHeight,
-        highlightColor:'#fff',
-        useTAA:true,
-        TAASampleLevel:1
+        highlightColor: '#fff',
+        useTAA: true,
+        TAASampleLevel: 1
     })
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
@@ -384,20 +384,19 @@ async function initThreeScene(urls: string[]) {
         if (loadingTextEl) loadingTextEl.textContent = `正在加载模型（0/${urls.length}）...`
         await loadModels(urls)
         if (loadingTextEl) loadingTextEl.textContent = '正在计算视角...'
-        // getCenterFromBounding()
         getCenterFromBounding()
-        let position = {
-            "x": -38.1035078849931,
-            "y": 2.6764456514848263,
-            "z": -58.96259276014798
-        }
-        camera.position.set(position.x, position.y, position.z)
-        position = {
-            "x": -41.51088325890221,
-            "y": 2.377209136262537,
-            "z": -48.9939838587306
-        }
-        mapControls!.target.set(position.x, position.y, position.z)
+        // let position = {
+        //     "x": -38.1035078849931,
+        //     "y": 2.6764456514848263,
+        //     "z": -58.96259276014798
+        // }
+        // camera.position.set(position.x, position.y, position.z)
+        // position = {
+        //     "x": -41.51088325890221,
+        //     "y": 2.377209136262537,
+        //     "z": -48.9939838587306
+        // }
+        // mapControls!.target.set(position.x, position.y, position.z)
         if (loadingTextEl) loadingTextEl.textContent = '即将开始渲染...'
         renderer.setAnimationLoop(animate)
     } catch (e) {
@@ -460,7 +459,7 @@ function addRaycaster(event: MouseEvent) {
 
 let execCoutn = 0, center = { x: -39.89443344077032, y: 0.10530759300673465, z: -53.995329363649034 }
 let lightFolder = null as GUI | null
-function addLight(group:THREE.Group) {
+function addLight(group: THREE.Group) {
     const lightBox = new THREE.Group()
     lightBox.name = 'lightBox'
     let position = { x: -35.04560543736986, y: 1.125605617251738, z: -54.4983522125491 }
@@ -552,17 +551,66 @@ function addLight(group:THREE.Group) {
     return lightBox
 }
 
+const views = [    
+    //污泥脱水间视角
+    {
+        cameraPosition: {
+            "x": -38.1035078849931,
+            "y": 2.6764456514848263,
+            "z": -58.96259276014798
+        },
+        target: {
+            "x": -41.51088325890221,
+            "y": 2.377209136262537,
+            "z": -48.9939838587306
+        }
+    },
+    //全厂视角
+    {
+        cameraPosition: {
+            "x": -117.39883179817937,
+            "y": 76.09916388265496,
+            "z": -5.785914196212406
+        },
+        target: {
+            "x": -18.261177319630175,
+            "y": 2.377209136262534,
+            "z": -1.6077837065429958
+        }
+    }
+]
 let lightBox = null as THREE.Group | null
 const options = {
-    showLight:false,
-    showStats:true
+    showLight: false,
+    showStats: true,
+    useView1: () => changeView(0),
+    useView2: () => changeView(1)
 }
+
+function changeView(index: number) {
+    gsapTimeLine.kill()
+    gsapTimeLine.to(camera.position, {
+        x: views[index].cameraPosition.x,
+        y: views[index].cameraPosition.y,
+        z: views[index].cameraPosition.z,
+        duration: 0.5,
+        ease: 'power2.inOut'
+    })
+    gsapTimeLine.to(mapControls!.target, {
+        x: views[index].target.x,
+        y: views[index].target.y,
+        z: views[index].target.z,
+        duration: 0.5,
+        ease: 'power2.inOut'
+    }, '<')
+}
+
 function doAfterLoad(group: THREE.Group, _url: string) {
     if (execCoutn > 0) return
     execCoutn++
 
     lightBox = addLight(group)
-    if(gui){
+    if (gui) {
         gui.add(options, 'showLight').name('展示污泥脱水间灯光').onChange(val => {
             if (val) {
                 lightBox && group.add(lightBox)
@@ -573,14 +621,15 @@ function doAfterLoad(group: THREE.Group, _url: string) {
             }
         })
         gui.add(options, 'showStats').name('性能监视器').onChange(val => {
-            if(val){
+            if (val) {
                 stats.dom.style.visibility = 'visible'
-            }else{
+            } else {
                 stats.dom.style.visibility = 'hidden'
             }
         })
+        gui.add(options, 'useView1').name('污泥脱水间视角')
+        gui.add(options, 'useView2').name('全厂视角')
     }
-    // addLight(group)
 
     group.traverse(child => {
         if (child instanceof THREE.Mesh) {
