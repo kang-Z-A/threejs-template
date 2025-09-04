@@ -309,6 +309,7 @@ function addEventListener() {
     })
 }
 
+let axisHelper: THREE.AxesHelper | undefined
 let removeEvent: Function | undefined
 async function initThreeScene(urls: string[]) {
     const containerWidth = viewerContainer.clientWidth
@@ -324,12 +325,12 @@ async function initThreeScene(urls: string[]) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 0.8
     // 修改阴影计算函数，增强对比度并进行标准化处理
-    THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment.replace(
-        'float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {',
-        `float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
-                // 增强阴影强度但限制在合理范围内
-                shadowIntensity = clamp(shadowIntensity * (1.0 + ${0.9}), 0.0, 1.0);`
-    )
+    // THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment.replace(
+    //     'float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {',
+    //     `float getShadow( sampler2D shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+    //             // 增强阴影强度但限制在合理范围内
+    //             shadowIntensity = clamp(shadowIntensity * (1.0 + ${0.9}), 0.0, 1.0);`
+    // )
     viewerContainer.appendChild(renderer.domElement)
 
 
@@ -337,6 +338,9 @@ async function initThreeScene(urls: string[]) {
     camera.position.set(0, 0, 10)
     camera.lookAt(0, 0, 0)
     camera.layers.enableAll();
+
+    axisHelper = new THREE.AxesHelper(10)
+    scene.add(axisHelper)
 
     mapControls = new MapControls(camera, renderer.domElement)
     mapControls.enableDamping = false
@@ -383,6 +387,15 @@ async function initThreeScene(urls: string[]) {
         const outdoorLightFolder = gui.addFolder('室外平行光')
         outdoorLightFolder.add(directionalLight, 'intensity').name('灯光强度').min(0).max(15).step(0.1)
         outdoorLightFolder.add(directionalLight.shadow, 'bias').name('bias').min(-0.5).max(0.5).step(0.0000001)
+        outdoorLightFolder.add(directionalLight.position, 'x').name('平行光位置x').min(-500).max(500).step(0.1)
+        outdoorLightFolder.add(directionalLight.position, 'y').name('平行光位置Y').min(0).max(300).step(0.1)
+        outdoorLightFolder.add(directionalLight.position, 'z').name('平行光位置Z').min(-500).max(-500).step(0.1)
+        outdoorLightFolder.add(directionalLight.shadow.camera, 'near').name('平行光阴影相机近截面距离').min(0.1).max(600).step(0.1).onChange(() => {
+            directionalLight.shadow.camera.updateProjectionMatrix()
+        })
+        outdoorLightFolder.add(directionalLight.shadow.camera, 'far').name('平行光阴影相机远截面距离').min(0.1).max(1000).step(0.1).onChange(() => {
+            directionalLight.shadow.camera.updateProjectionMatrix()
+        })
         outdoorLightFolder.close()
     }
 
@@ -397,18 +410,6 @@ async function initThreeScene(urls: string[]) {
         await loadModels(urls)
         if (loadingTextEl) loadingTextEl.textContent = '正在计算视角...'
         getCenterFromBounding()
-        // let position = {
-        //     "x": -38.1035078849931,
-        //     "y": 2.6764456514848263,
-        //     "z": -58.96259276014798
-        // }
-        // camera.position.set(position.x, position.y, position.z)
-        // position = {
-        //     "x": -41.51088325890221,
-        //     "y": 2.377209136262537,
-        //     "z": -48.9939838587306
-        // }
-        // mapControls!.target.set(position.x, position.y, position.z)
         if (loadingTextEl) loadingTextEl.textContent = '即将开始渲染...'
         renderer.setAnimationLoop(animate)
     } catch (e) {
@@ -569,7 +570,7 @@ function addLight(group: THREE.Group) {
         directionalLightFolder.add(directionalLight2, 'intensity').name('灯光2强度').min(0).max(3).step(0.1)
         directionalLightFolder.add(directionalLight3, 'intensity').name('灯光3强度').min(0).max(3).step(0.1)
         directionalLightFolder.add(directionalLight4, 'intensity').name('灯光4强度').min(0).max(3).step(0.1)
-        directionalLightFolder.open()
+        directionalLightFolder.close()
         lightFolder = directionalLightFolder
     }
 
@@ -608,6 +609,7 @@ let lightBox = null as THREE.Group | null
 const options = {
     showLight: false,
     showStats: true,
+    showAxis: true,
     useView1: () => changeView(0),
     useView2: () => changeView(1)
 }
@@ -650,6 +652,14 @@ function doAfterLoad(group: THREE.Group, _url: string) {
                 stats.dom.style.visibility = 'visible'
             } else {
                 stats.dom.style.visibility = 'hidden'
+            }
+        })
+        gui.add(options, 'showAxis').name('坐标轴').onChange(val => {
+            if (!axisHelper) return
+            if (val) {
+                scene.add(axisHelper)
+            } else {
+                scene.remove(axisHelper)
             }
         })
         gui.add(options, 'useView1').name('污泥脱水间视角')
