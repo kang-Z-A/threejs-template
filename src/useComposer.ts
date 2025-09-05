@@ -9,34 +9,33 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { TAARenderPass } from 'three/addons/postprocessing/TAARenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
-import { BleachBypassShader } from 'three/addons/shaders/BleachBypassShader.js'; //降低饱和度，提高对比度，保留高光细节
 import { ColorCorrectionShader } from 'three/addons/shaders/ColorCorrectionShader.js'; //调整色彩平衡，校正色偏
 
 export type ComposerCustomOptions = {
-  /** 是否使用描边，默认为true */
-  useOutline?: boolean,
-  /** 是否使用伽马校正，默认为false */
-  useGammaCorrection?: boolean,
-  /** 是否使用FXAA抗锯齿，默认为false */
-  useFXAA?: boolean,
-  /** 是否使用边缘检测，默认为false */
-  useEdgeDetection?: boolean,
-  /** 是否使用亮度检测，默认为false */
-  useLuminance?: boolean,
-  /** 是否使用下采样，默认为false */
-  useDownSampling?: boolean,
-  /** 是否使用上采样，默认为false */
-  useUpSampling?: boolean,
-  /** 是否使用TAA抗锯齿，默认为false */
-  useTAA?:boolean,
-  /** TAA抗锯齿采样等级，默认1 */
-  TAASampleLevel?:number,
-  /** 是否使用SMAA抗锯齿，默认为false */
-  useSMAA?:boolean,
-  /** 是否使用SSAO环境光遮蔽，默认为false */
-  useSSAO?:boolean,
-  /** 是否使用ColorCorrection，默认为false */
-  useColorCorrection?:boolean
+    /** 是否使用描边，默认为true */
+    useOutline?: boolean,
+    /** 是否使用伽马校正，默认为false */
+    useGammaCorrection?: boolean,
+    /** 是否使用FXAA抗锯齿，默认为false */
+    useFXAA?: boolean,
+    /** 是否使用边缘检测，默认为false */
+    useEdgeDetection?: boolean,
+    /** 是否使用亮度检测，默认为false */
+    useLuminance?: boolean,
+    /** 是否使用下采样，默认为false */
+    useDownSampling?: boolean,
+    /** 是否使用上采样，默认为false */
+    useUpSampling?: boolean,
+    /** 是否使用TAA抗锯齿，默认为false */
+    useTAA?: boolean,
+    /** TAA抗锯齿采样等级，默认1 */
+    TAASampleLevel?: number,
+    /** 是否使用SMAA抗锯齿，默认为false */
+    useSMAA?: boolean,
+    /** 是否使用SSAO环境光遮蔽，默认为false */
+    useSSAO?: boolean,
+    /** 是否使用ColorCorrection，默认为false */
+    useColorCorrection?: boolean
 }
 
 type ComposerOptions = {
@@ -82,22 +81,8 @@ export function useComposerHook(options: ComposerOptions) {
     composer.addPass(renderPass)
 
     renderer.setPixelRatio(window.devicePixelRatio);
-    
-    // 1. 首先添加SSAO（几何处理先做）
-    if(useSSAO){
-        ssaoPass = new SSAOPass(scene, camera, containerWidth, containerHeight);
-        composer.addPass(ssaoPass);
-    }
-    
-    // 2. 添加Outline（几何处理先做）
-    if (useOutline) {
-        const v2 = new THREE.Vector2(containerWidth, containerHeight)
-        outlinePass = new OutlinePass(v2, scene, camera)
-        defaultOutlinePass()
-        composer.addPass(outlinePass)
-    }
-    
-    // 3. 添加抗锯齿（三选一）
+
+    // 1. 添加抗锯齿（三选一）
     if (useTAA) {
         taaPass = new TAARenderPass(scene, camera, 0x000, 1);
         taaPass.unbiased = false;
@@ -118,11 +103,26 @@ export function useComposerHook(options: ComposerOptions) {
         composer.addPass(smaaPass);
     }
 
-    if(useColorCorrection){
+    // 2.颜色矫正
+    if (useColorCorrection) {
         effectColor = new ShaderPass(ColorCorrectionShader);
         effectColor.uniforms['powRGB'].value.set(1.0, 1.0, 1.0);
         effectColor.uniforms['mulRGB'].value.set(1.0, 1.0, 1.0);
         composer.addPass(effectColor);
+    }
+
+    // 3. 添加SSAO
+    if (useSSAO) {
+        ssaoPass = new SSAOPass(scene, camera, containerWidth, containerHeight);
+        composer.addPass(ssaoPass);
+    }
+
+    // 4. 添加Outline
+    if (useOutline) {
+        const v2 = new THREE.Vector2(containerWidth, containerHeight)
+        outlinePass = new OutlinePass(v2, scene, camera)
+        defaultOutlinePass()
+        composer.addPass(outlinePass)
     }
 
     // 5. 最后添加伽马校正
@@ -130,7 +130,7 @@ export function useComposerHook(options: ComposerOptions) {
         const gammaPass = new ShaderPass(GammaCorrectionShader);
         composer.addPass(gammaPass);
     }
-    
+
     // 6. 输出通道
     outputPass = new OutputPass()
     composer.addPass(outputPass)

@@ -299,34 +299,53 @@ async function loadModels(urls: string[]) {
     })
 }
 
+// 计算模型包围盒中心并自动调整相机视角与远近裁剪面
 let getCenterFromBounding = () => {
+    // 计算模型组的包围盒
     const box = new THREE.Box3().setFromObject(modelGroup)
     if (box.isEmpty()) {
+        // 如果包围盒为空，输出警告并跳过居中
         console.warn('Bounding box is empty; skip centering')
         return
     }
+    // 获取包围盒中心点
     const center = new THREE.Vector3()
     box.getCenter(center)
+    // 获取包围球及半径
     const sphere = new THREE.Sphere()
     box.getBoundingSphere(sphere)
+    // 防止半径为0，最小值为0.001
     const radius = Math.max(sphere.radius, 0.001)
 
+    // 计算相机垂直视场角（弧度制）
     const verticalFov = THREE.MathUtils.degToRad(camera.fov)
+    // 获取相机宽高比，防止为0
     const aspect = Math.max(0.0001, camera.aspect)
+    // 根据垂直视场角计算到模型的距离
     const distanceV = radius / Math.tan(verticalFov / 2)
+    // 计算水平视场角
     const horizFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect)
+    // 根据水平视场角计算到模型的距离
     const distanceH = radius / Math.tan(horizFov / 2)
+    // 取较大距离并适当放大，保证模型完整显示
     const distance = Math.max(distanceV, distanceH) * 1.1
 
+    // 设置控制器的目标点为模型中心
     if (mapControls) {
         mapControls.target.copy(center)
         mapControls.update()
     }
+    // 设定相机视角方向（可根据需求调整方向）
     const viewDir = new THREE.Vector3(1, 1, 1).normalize()
+    // 设置相机位置为中心点加上视角方向乘以距离
     camera.position.copy(center.clone().add(viewDir.multiplyScalar(distance)))
+    // 自动设置相机近裁剪面，防止过小
     camera.near = Math.max(0.1, distance / 1000)
+    // 自动设置相机远裁剪面，保证场景完整
     camera.far = Math.max(camera.near + 10, distance * 1000)
+    // 相机朝向模型中心
     camera.lookAt(center)
+    // 更新相机投影矩阵
     camera.updateProjectionMatrix()
 }
 
@@ -385,8 +404,8 @@ async function initThreeScene(urls: string[]) {
         highlightColor: '#fff',
         useTAA: true,
         TAASampleLevel: 1,
-        useColorCorrection:true
-        // useSSAO: true
+        useColorCorrection:true,
+        useSSAO: false
     })
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
@@ -484,12 +503,22 @@ function addComposerGui() {
     if (!gui || !composerApi) return
 
     const composerFolder = gui.addFolder('后处理')
-    // if (composerApi.ssaoPass) {
-    //     composerFolder.add(composerApi.ssaoPass, 'kernelRadius').name('kernelRadius').min(0).max(64).step(0.1)
-    //     composerFolder.add(composerApi.ssaoPass, 'minDistance').name('minDistance').min(0.001).max(0.2).step(0.001)
-    //     composerFolder.add(composerApi.ssaoPass, 'maxDistance').name('maxDistance').min(0.01).max(1.0).step(0.0001)
-    //     composerFolder.add(composerApi.ssaoPass, 'enabled').name('启用')
-    // }
+    if (composerApi.ssaoPass) {
+        const options = {
+            showSSAO:false
+        }
+        composerFolder.add(composerApi.ssaoPass, 'kernelRadius').name('kernelRadius').min(0).max(64).step(0.1)
+        composerFolder.add(composerApi.ssaoPass, 'minDistance').name('minDistance').min(0.001).max(1.0).step(0.001)
+        composerFolder.add(composerApi.ssaoPass, 'maxDistance').name('maxDistance').min(0.01).max(10.0).step(0.0001)
+        composerFolder.add(options, 'showSSAO').name('SSAO图像').onChange(val => {
+            if(val){
+                composerApi!.ssaoPass!.output = SSAOPass.OUTPUT.SSAO
+            }else{
+                composerApi!.ssaoPass!.output = SSAOPass.OUTPUT.Default
+            }
+        })
+        composerFolder.add(composerApi.ssaoPass, 'enabled').name('SSAO启用')
+    }
 
     if (composerApi.effectColor) {
         const options = {
@@ -509,7 +538,6 @@ function addComposerGui() {
         composerFolder.add(composerApi.taaPass, 'enabled').name('taa抗锯齿')
         composerFolder.add(composerApi.taaPass, 'sampleLevel').min(0).max(5).step(1).name('taa抗锯齿采样等级')
     }
-    // composerApi.ssaoPass!.output = SSAOPass.OUTPUT.SSAO
     composerFolder.close()
 }
 
