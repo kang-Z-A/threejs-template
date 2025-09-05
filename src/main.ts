@@ -467,16 +467,14 @@ function addHDRGui(){
     const hdrFolder = gui.addFolder('环境贴图')
     hdrFolder.add(options, 'changeEnvMap').name('切换环境贴图')
     hdrFolder.add(options, 'envMapIntensity').name('环境贴图强度').min(0).max(3).step(0.01).onChange(() => {
-        if (envMapTexture) {
-            scene.traverse(child => {
-                if (child instanceof THREE.Mesh) {
-                    if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
-                        child.material.envMapIntensity = options.envMapIntensity
-                        child.material.needsUpdate = true
-                    }
+        scene.traverse(child => {
+            if (child instanceof THREE.Mesh) {
+                if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
+                    child.material.envMapIntensity = options.envMapIntensity
+                    child.material.needsUpdate = true
                 }
-            })
-        }
+            }
+        })
     })
     hdrFolder.close()
 }
