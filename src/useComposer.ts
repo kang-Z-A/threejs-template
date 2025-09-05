@@ -9,6 +9,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { TAARenderPass } from 'three/addons/postprocessing/TAARenderPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
+import { BleachBypassShader } from 'three/addons/shaders/BleachBypassShader.js'; //降低饱和度，提高对比度，保留高光细节
+import { ColorCorrectionShader } from 'three/addons/shaders/ColorCorrectionShader.js'; //调整色彩平衡，校正色偏
 
 export type ComposerCustomOptions = {
   /** 是否使用描边，默认为true */
@@ -32,7 +34,11 @@ export type ComposerCustomOptions = {
   /** 是否使用SMAA抗锯齿，默认为false */
   useSMAA?:boolean,
   /** 是否使用SSAO环境光遮蔽，默认为false */
-  useSSAO?:boolean
+  useSSAO?:boolean,
+  /** 是否使用BleachBypass，默认为false */
+  useBleachBypass?:boolean,
+  /** 是否使用ColorCorrection，默认为false */
+  useColorCorrection?:boolean
 }
 
 type ComposerOptions = {
@@ -46,7 +52,8 @@ type ComposerOptions = {
 
 export function useComposerHook(options: ComposerOptions) {
     const { renderer, scene, camera, containerWidth, containerHeight, highlightColor,
-        useOutline, useGammaCorrection, useFXAA, useTAA, TAASampleLevel, useSMAA, useSSAO } = options
+        useOutline, useGammaCorrection, useFXAA, useTAA, TAASampleLevel, useSMAA, useSSAO,
+        useBleachBypass, useColorCorrection } = options
 
     let outlinePass: OutlinePass | undefined
     let composer: EffectComposer | undefined
@@ -56,6 +63,8 @@ export function useComposerHook(options: ComposerOptions) {
     let smaaPass: SMAAPass | undefined
     let outputPass: OutputPass | undefined
     let ssaoPass: SSAOPass | undefined
+    let bleachBypassPass: ShaderPass | undefined
+    let colorCorrectionPass: ShaderPass | undefined
 
     /**
     * 模型描线默认配置
@@ -84,7 +93,7 @@ export function useComposerHook(options: ComposerOptions) {
         taaPass.accumulate = false
         composer.addPass(taaPass);
 
-        renderPass.enabled = false
+        // renderPass.enabled = false
     }
 
     // 创建伽马校正通道

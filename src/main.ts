@@ -9,11 +9,18 @@ import GUI from 'three/examples/jsm/libs/lil-gui.module.min'
 import { gsap } from 'gsap'
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { useComposerHook } from './useComposer'
+import { EXRLoader } from 'three/examples/jsm/Addons'
 const gsapTimeLine = gsap.timeline()
 
 declare global {
     interface Window {
-        showOpenFilePicker: (options?: { types?: { accept: string }[], multiple?: boolean }) => Promise<FileSystemFileHandle[]>;
+        showOpenFilePicker: (options?: {
+            types?: {
+                description?: string,
+                accept: Record<string, string[]>
+            }[],
+            multiple?: boolean
+        }) => Promise<FileSystemFileHandle[]>;
         showDirectoryPicker: (options?: { startIn?: string }) => Promise<FileSystemDirectoryHandle[]>;
     }
 }
@@ -187,34 +194,57 @@ document.body.appendChild(stats.dom);
 let envMapTexture: THREE.Texture | null = null
 let envMapTexture2: THREE.Texture | null = null
 let environmentIntensity = 1.0
-async function initEnvMap() {
+
+type initEnvMapOptions = {
+    filePath?: string
+    updateMaterials?: boolean,
+    fileType?: 'exr' | 'hdr'
+}
+async function initEnvMap(options: initEnvMapOptions) {
+    const { filePath = 'hdr/charolettenbrunn_park_4k.exr', updateMaterials = false, fileType = 'exr' } = options
     return new Promise((resolve, _reject) => {
         // 创建一个PMREMGenerator以生成环境贴图
         var pmremGenerator = new THREE.PMREMGenerator(renderer!);
         pmremGenerator.compileEquirectangularShader();
 
-        let loader = new RGBELoader()
 
-        loader.load('hdr/studio_small_06_2k.hdr', function (texture0) {
-            texture0.colorSpace = THREE.SRGBColorSpace;
-            texture0.mapping = THREE.EquirectangularReflectionMapping;
+        let loader;
+        if (fileType === 'exr') {
+            loader = new EXRLoader();
+        } else {
+            loader = new RGBELoader();
+        }
+
+        loader.load(filePath, function (texture) {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.mapping = THREE.EquirectangularReflectionMapping;
             // 通过PMREMGenerator处理texture生成环境贴图
-            envMapTexture2 = pmremGenerator.fromEquirectangular(texture0).texture;
+            envMapTexture = pmremGenerator.fromEquirectangular(texture).texture;
+            // 设置场景的环境贴图
+            scene.environment = envMapTexture;
+            scene.environmentIntensity = environmentIntensity ?? 1.0;
+            // 释放pmremGenerator的资源
+            console.log('环境贴图解析配置完成');
 
-            loader.load('hdr/rostock_laage_airport_2k.hdr', function (texture) {
-                texture.colorSpace = THREE.SRGBColorSpace;
-                texture.mapping = THREE.EquirectangularReflectionMapping;
-                // 通过PMREMGenerator处理texture生成环境贴图
-                envMapTexture = pmremGenerator.fromEquirectangular(texture).texture;
-                // 设置场景的环境贴图
-                scene.environment = envMapTexture;
-                scene.environmentIntensity = environmentIntensity ?? 1.0;
-                // 释放pmremGenerator的资源
-                console.log('环境贴图解析配置完成');
-                pmremGenerator.dispose();
-                resolve('环境贴图解析配置完成')
+            if (updateMaterials) {
+                scene.traverse(child => {
+                    if (child instanceof THREE.Mesh) {
+                        if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
+                            child.material.envMap = envMapTexture
+                            child.material.envMapIntensity = environmentIntensity ?? 1.0
+                            child.material.needsUpdate = true
+                        }
+                    }
+                })
+            }
+            pmremGenerator.dispose();
+            resolve('环境贴图解析配置完成')
+        },
+            undefined, // onProgress回调
+            (error) => {
+                console.error('环境贴图加载失败:', error);
+                resolve('环境贴图加载失败');
             });
-        })
     })
 }
 
@@ -379,7 +409,7 @@ async function initThreeScene(urls: string[]) {
     scene.add(directionalLight)
 
     //初始化背景
-    initEnvMap()
+    initEnvMap({})
     addEventListener()
     removeEvent = showEditor(1)
 
@@ -389,7 +419,7 @@ async function initThreeScene(urls: string[]) {
         outdoorLightFolder.add(directionalLight.shadow, 'bias').name('bias').min(-0.5).max(0.5).step(0.0000001)
         outdoorLightFolder.add(directionalLight.position, 'x').name('平行光位置x').min(-500).max(500).step(0.1)
         outdoorLightFolder.add(directionalLight.position, 'y').name('平行光位置Y').min(0).max(300).step(0.1)
-        outdoorLightFolder.add(directionalLight.position, 'z').name('平行光位置Z').min(-500).max(-500).step(0.1)
+        outdoorLightFolder.add(directionalLight.position, 'z').name('平行光位置Z').min(-500).max(500).step(0.1)
         outdoorLightFolder.add(directionalLight.shadow.camera, 'near').name('平行光阴影相机近截面距离').min(0.1).max(600).step(0.1).onChange(() => {
             directionalLight.shadow.camera.updateProjectionMatrix()
         })
@@ -400,6 +430,7 @@ async function initThreeScene(urls: string[]) {
     }
 
     addMapControlsGui()
+    addHDRGui()
     // addComposerGui()
     stats.dom.style.visibility = 'visible'
     viewerContainer.addEventListener('dblclick', addRaycaster)
@@ -429,6 +460,25 @@ function addMapControlsGui() {
     mapControlsFolder.add(mapControls, 'rotateSpeed').name('rotateSpeed').min(0).max(10).step(0.01)
     mapControlsFolder.add(mapControls, 'zoomSpeed').name('zoomSpeed').min(0).max(10).step(0.01)
     mapControlsFolder.close()
+}
+
+function addHDRGui(){
+    if (!gui) return
+    const hdrFolder = gui.addFolder('环境贴图')
+    hdrFolder.add(options, 'changeEnvMap').name('切换环境贴图')
+    hdrFolder.add(options, 'envMapIntensity').name('环境贴图强度').min(0).max(3).step(0.01).onChange(() => {
+        if (envMapTexture) {
+            scene.traverse(child => {
+                if (child instanceof THREE.Mesh) {
+                    if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
+                        child.material.envMapIntensity = options.envMapIntensity
+                        child.material.needsUpdate = true
+                    }
+                }
+            })
+        }
+    })
+    hdrFolder.close()
 }
 
 function addComposerGui() {
@@ -610,8 +660,10 @@ const options = {
     showLight: false,
     showStats: true,
     showAxis: true,
+    envMapIntensity: 1.0,
     useView1: () => changeView(0),
-    useView2: () => changeView(1)
+    useView2: () => changeView(1),
+    changeEnvMap: () => changeEnvMap()
 }
 
 function changeView(index: number) {
@@ -630,6 +682,37 @@ function changeView(index: number) {
         duration: 0.5,
         ease: 'power2.inOut'
     }, '<')
+}
+
+async function changeEnvMap() {
+    const fileHandles = await window.showOpenFilePicker(
+        {
+            multiple: false,
+            types: [
+                {
+                    description: '环境贴图文件',
+                    accept: {
+                        'application/octet-stream': ['.exr', '.hdr']
+                    }
+                }
+            ]
+        }
+    );
+    const files = await Promise.all(fileHandles.map(handle => handle.getFile()));
+    console.log('[ All files ] >', files);
+
+    if (files.length > 0) {
+        const file = files[0]
+        const ext = file.name.split('.').pop()?.toLowerCase() || ''
+        if (ext === 'exr' || ext === 'hdr') {
+            const filePath = URL.createObjectURL(file)
+            initEnvMap({
+                filePath,
+                fileType: ext,
+                updateMaterials: true
+            })
+        }
+    }
 }
 
 function doAfterLoad(group: THREE.Group, _url: string) {
