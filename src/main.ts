@@ -385,6 +385,7 @@ async function initThreeScene(urls: string[]) {
         highlightColor: '#fff',
         useTAA: true,
         TAASampleLevel: 1,
+        useColorCorrection:true
         // useSSAO: true
     })
 
@@ -431,7 +432,7 @@ async function initThreeScene(urls: string[]) {
 
     addMapControlsGui()
     addHDRGui()
-    // addComposerGui()
+    addComposerGui()
     stats.dom.style.visibility = 'visible'
     viewerContainer.addEventListener('dblclick', addRaycaster)
 
@@ -462,7 +463,7 @@ function addMapControlsGui() {
     mapControlsFolder.close()
 }
 
-function addHDRGui(){
+function addHDRGui() {
     if (!gui) return
     const hdrFolder = gui.addFolder('环境贴图')
     hdrFolder.add(options, 'changeEnvMap').name('切换环境贴图')
@@ -481,14 +482,34 @@ function addHDRGui(){
 
 function addComposerGui() {
     if (!gui || !composerApi) return
+
     const composerFolder = gui.addFolder('后处理')
-    if (composerApi.ssaoPass) {
-        composerFolder.add(composerApi.ssaoPass, 'kernelRadius').name('kernelRadius').min(0).max(64).step(0.1)
-        composerFolder.add(composerApi.ssaoPass, 'minDistance').name('minDistance').min(0.001).max(0.2).step(0.001)
-        composerFolder.add(composerApi.ssaoPass, 'maxDistance').name('maxDistance').min(0.01).max(1.0).step(0.0001)
-        composerFolder.add(composerApi.ssaoPass, 'enabled').name('启用')
+    // if (composerApi.ssaoPass) {
+    //     composerFolder.add(composerApi.ssaoPass, 'kernelRadius').name('kernelRadius').min(0).max(64).step(0.1)
+    //     composerFolder.add(composerApi.ssaoPass, 'minDistance').name('minDistance').min(0.001).max(0.2).step(0.001)
+    //     composerFolder.add(composerApi.ssaoPass, 'maxDistance').name('maxDistance').min(0.01).max(1.0).step(0.0001)
+    //     composerFolder.add(composerApi.ssaoPass, 'enabled').name('启用')
+    // }
+
+    if (composerApi.effectColor) {
+        const options = {
+            powRGB: 1.0,
+            mulRGB: 1.0,
+        }
+        composerFolder.add(composerApi.effectColor, 'enabled').name('色彩校正')
+        composerFolder.add(options, 'powRGB').min(0).max(5).step(0.01).name('effectColor_powRGB').onChange(val => {
+            composerApi!.effectColor!.material.uniforms['powRGB'].value.set(val, val, val)
+        })
+        composerFolder.add(options, 'mulRGB').min(0).max(5).step(0.01).name('effectColor_mulRGB').onChange(val => {
+            composerApi!.effectColor!.material.uniforms['mulRGB'].value.set(val, val, val)
+        })
     }
-    composerApi.ssaoPass!.output = SSAOPass.OUTPUT.SSAO
+
+    if(composerApi.taaPass){
+        composerFolder.add(composerApi.taaPass, 'enabled').name('taa抗锯齿')
+        composerFolder.add(composerApi.taaPass, 'sampleLevel').min(0).max(5).step(1).name('taa抗锯齿采样等级')
+    }
+    // composerApi.ssaoPass!.output = SSAOPass.OUTPUT.SSAO
     composerFolder.close()
 }
 
@@ -754,6 +775,7 @@ function doAfterLoad(group: THREE.Group, _url: string) {
 
             if (!Array.isArray(child.material)) {
                 const mat = child.material as THREE.MeshStandardMaterial
+                mat.vertexColors = false
                 const materialNames = ['equ_1_metal_white.002', '新新冷灰']
                 if (materialNames.includes(mat.name)) {
                     mat.envMap = envMapTexture

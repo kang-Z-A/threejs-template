@@ -35,8 +35,6 @@ export type ComposerCustomOptions = {
   useSMAA?:boolean,
   /** 是否使用SSAO环境光遮蔽，默认为false */
   useSSAO?:boolean,
-  /** 是否使用BleachBypass，默认为false */
-  useBleachBypass?:boolean,
   /** 是否使用ColorCorrection，默认为false */
   useColorCorrection?:boolean
 }
@@ -53,7 +51,7 @@ type ComposerOptions = {
 export function useComposerHook(options: ComposerOptions) {
     const { renderer, scene, camera, containerWidth, containerHeight, highlightColor,
         useOutline, useGammaCorrection, useFXAA, useTAA, TAASampleLevel, useSMAA, useSSAO,
-        useBleachBypass, useColorCorrection } = options
+        useColorCorrection } = options
 
     let outlinePass: OutlinePass | undefined
     let composer: EffectComposer | undefined
@@ -63,8 +61,7 @@ export function useComposerHook(options: ComposerOptions) {
     let smaaPass: SMAAPass | undefined
     let outputPass: OutputPass | undefined
     let ssaoPass: SSAOPass | undefined
-    let bleachBypassPass: ShaderPass | undefined
-    let colorCorrectionPass: ShaderPass | undefined
+    let effectColor: ShaderPass | undefined
 
     /**
     * 模型描线默认配置
@@ -85,25 +82,30 @@ export function useComposerHook(options: ComposerOptions) {
     composer.addPass(renderPass)
 
     renderer.setPixelRatio(window.devicePixelRatio);
-
+    
+    // 1. 首先添加SSAO（几何处理先做）
+    if(useSSAO){
+        ssaoPass = new SSAOPass(scene, camera, containerWidth, containerHeight);
+        composer.addPass(ssaoPass);
+    }
+    
+    // 2. 添加Outline（几何处理先做）
+    if (useOutline) {
+        const v2 = new THREE.Vector2(containerWidth, containerHeight)
+        outlinePass = new OutlinePass(v2, scene, camera)
+        defaultOutlinePass()
+        composer.addPass(outlinePass)
+    }
+    
+    // 3. 添加抗锯齿（三选一）
     if (useTAA) {
         taaPass = new TAARenderPass(scene, camera, 0x000, 1);
         taaPass.unbiased = false;
         taaPass.sampleLevel = TAASampleLevel ?? 1;
         taaPass.accumulate = false
         composer.addPass(taaPass);
-
         // renderPass.enabled = false
-    }
-
-    // 创建伽马校正通道
-    if (useGammaCorrection) {
-        const gammaPass = new ShaderPass(GammaCorrectionShader);
-        composer.addPass(gammaPass);
-    }
-
-    //FXAA抗锯齿通道
-    if (useFXAA) {
+    } else if (useFXAA) {
         effectFXAA = new ShaderPass(FXAAShader);
         // `.getPixelRatio()`获取`renderer!.setPixelRatio()`设置的值
         const pixelRatio = renderer.getPixelRatio();//获取设备像素比 
@@ -111,26 +113,25 @@ export function useComposerHook(options: ComposerOptions) {
         effectFXAA.material.uniforms['resolution'].value.x = 1 / (containerWidth * pixelRatio);
         effectFXAA.material.uniforms['resolution'].value.y = 1 / (containerHeight * pixelRatio);
         composer.addPass(effectFXAA);
-    }
-
-    if (useSMAA) {
+    } else if (useSMAA) {
         smaaPass = new SMAAPass();
         composer.addPass(smaaPass);
     }
 
-    if(useSSAO){
-        ssaoPass = new SSAOPass(scene, camera, containerWidth, containerHeight);
-        composer.addPass(ssaoPass);
+    if(useColorCorrection){
+        effectColor = new ShaderPass(ColorCorrectionShader);
+        effectColor.uniforms['powRGB'].value.set(1.0, 1.0, 1.0);
+        effectColor.uniforms['mulRGB'].value.set(1.0, 1.0, 1.0);
+        composer.addPass(effectColor);
     }
 
-
-    if (useOutline) {
-        const v2 = new THREE.Vector2(containerWidth, containerHeight)
-        outlinePass = new OutlinePass(v2, scene, camera)
-        defaultOutlinePass()
-        composer.addPass(outlinePass)
+    // 5. 最后添加伽马校正
+    if (useGammaCorrection) {
+        const gammaPass = new ShaderPass(GammaCorrectionShader);
+        composer.addPass(gammaPass);
     }
-
+    
+    // 6. 输出通道
     outputPass = new OutputPass()
     composer.addPass(outputPass)
 
@@ -175,6 +176,7 @@ export function useComposerHook(options: ComposerOptions) {
         taaPass,
         smaaPass,
         ssaoPass,
+        effectColor,
         dispose,
         resize
     }
