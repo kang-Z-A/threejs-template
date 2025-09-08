@@ -201,7 +201,7 @@ type initEnvMapOptions = {
     fileType?: 'exr' | 'hdr'
 }
 async function initEnvMap(options: initEnvMapOptions) {
-    const { filePath = 'hdr/charolettenbrunn_park_4k.exr', updateMaterials = false, fileType = 'exr' } = options
+    const { filePath = 'hdr/rostock_laage_airport_2k.hdr', updateMaterials = false, fileType = 'hdr' } = options
     return new Promise((resolve, _reject) => {
         // 创建一个PMREMGenerator以生成环境贴图
         var pmremGenerator = new THREE.PMREMGenerator(renderer!);
