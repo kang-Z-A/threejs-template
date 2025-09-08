@@ -404,7 +404,7 @@ async function initThreeScene(urls: string[]) {
         highlightColor: '#fff',
         useTAA: true,
         TAASampleLevel: 1,
-        useColorCorrection:true,
+        useColorCorrection: true,
         useSSAO: false
     })
 
@@ -505,15 +505,15 @@ function addComposerGui() {
     const composerFolder = gui.addFolder('后处理')
     if (composerApi.ssaoPass) {
         const options = {
-            showSSAO:false
+            showSSAO: false
         }
         composerFolder.add(composerApi.ssaoPass, 'kernelRadius').name('kernelRadius').min(0).max(64).step(0.1)
         composerFolder.add(composerApi.ssaoPass, 'minDistance').name('minDistance').min(0.001).max(1.0).step(0.001)
         composerFolder.add(composerApi.ssaoPass, 'maxDistance').name('maxDistance').min(0.01).max(10.0).step(0.0001)
         composerFolder.add(options, 'showSSAO').name('SSAO图像').onChange(val => {
-            if(val){
+            if (val) {
                 composerApi!.ssaoPass!.output = SSAOPass.OUTPUT.SSAO
-            }else{
+            } else {
                 composerApi!.ssaoPass!.output = SSAOPass.OUTPUT.Default
             }
         })
@@ -534,7 +534,7 @@ function addComposerGui() {
         })
     }
 
-    if(composerApi.taaPass){
+    if (composerApi.taaPass) {
         composerFolder.add(composerApi.taaPass, 'enabled').name('taa抗锯齿')
         composerFolder.add(composerApi.taaPass, 'sampleLevel').min(0).max(5).step(1).name('taa抗锯齿采样等级')
     }
@@ -582,6 +582,9 @@ function addRaycaster(event: MouseEvent) {
 
 let execCoutn = 0, center = { x: -39.89443344077032, y: 0.10530759300673465, z: -53.995329363649034 }
 let lightFolder = null as GUI | null
+const geometry = new THREE.BoxGeometry(100, 100)
+const material = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff0000') })
+const mesh = new THREE.Mesh(geometry, material)
 function addLight(group: THREE.Group) {
     const lightBox = new THREE.Group()
     lightBox.name = 'lightBox'
@@ -590,18 +593,34 @@ function addLight(group: THREE.Group) {
     const directionalLight = new THREE.DirectionalLight(0xfffdf6, 0.9)
     directionalLight.position.set(-1600, 500, 1200)
     lightBox.add(directionalLight)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight, 5));
+    // const mesh1 = mesh.clone()
+    // mesh1.position.set(-1600, 500, 1200)
+    // lightBox.add(mesh1)
 
     const directionalLight2 = new THREE.DirectionalLight(0xfffdf6, 0.5)
-    directionalLight2.position.set(2000,500,1000)
+    directionalLight2.position.set(2000, 500, 1000)
     lightBox.add(directionalLight2)
+    // const mesh2 = mesh.clone()
+    // mesh2.position.set(2000, 500, 1000)
+    // lightBox.add(mesh2)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight2, 5));
 
     const directionalLight3 = new THREE.DirectionalLight(0xfffdf6, 0.4)
     directionalLight3.position.set(-800, 500, -2000)
     lightBox.add(directionalLight3)
+    // const mesh3 = mesh.clone()
+    // mesh3.position.set(-800, 500, -2000)
+    // lightBox.add(mesh3)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight3, 5));
 
     const directionalLight4 = new THREE.DirectionalLight(0xfffdf6, 0.2)
     directionalLight4.position.set(0, 500, 0)
     lightBox.add(directionalLight4)
+    // const mesh4 = mesh.clone()
+    // mesh4.position.set(0, 500, 0)
+    // lightBox.add(mesh4)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight4, 5));
 
     if (gui) {
         const directionalLightFolder = gui.addFolder('室内平行光')
