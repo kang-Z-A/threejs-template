@@ -193,7 +193,7 @@ document.body.appendChild(stats.dom);
 
 let envMapTexture: THREE.Texture | null = null
 let envMapTexture2: THREE.Texture | null = null
-let environmentIntensity = 1.0
+let environmentIntensity = 0.5
 
 type initEnvMapOptions = {
     filePath?: string
@@ -408,7 +408,7 @@ async function initThreeScene(urls: string[]) {
         useSSAO: false
     })
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.35) // 环境光
     scene.add(ambientLight)
 
     const directionalLight = new THREE.DirectionalLight(0xfffdf6, 5)
@@ -426,7 +426,7 @@ async function initThreeScene(urls: string[]) {
     directionalLight.shadow.camera.near = 300
     directionalLight.shadow.radius = 2
     directionalLight.shadow.bias = -0.0015
-    scene.add(directionalLight)
+    // scene.add(directionalLight)
 
     //初始化背景
     initEnvMap({})
