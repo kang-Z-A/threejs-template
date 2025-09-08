@@ -193,7 +193,7 @@ document.body.appendChild(stats.dom);
 
 let envMapTexture: THREE.Texture | null = null
 let envMapTexture2: THREE.Texture | null = null
-let environmentIntensity = 1.0
+let environmentIntensity = 0.5
 
 type initEnvMapOptions = {
     filePath?: string
@@ -226,17 +226,17 @@ async function initEnvMap(options: initEnvMapOptions) {
             // 释放pmremGenerator的资源
             console.log('环境贴图解析配置完成');
 
-            if (updateMaterials) {
-                scene.traverse(child => {
-                    if (child instanceof THREE.Mesh) {
-                        if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
-                            child.material.envMap = envMapTexture
-                            child.material.envMapIntensity = environmentIntensity ?? 1.0
-                            child.material.needsUpdate = true
-                        }
-                    }
-                })
-            }
+            // if (updateMaterials) {
+            //     scene.traverse(child => {
+            //         if (child instanceof THREE.Mesh) {
+            //             if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
+            //                 child.material.envMap = envMapTexture
+            //                 child.material.envMapIntensity = environmentIntensity ?? 1.0
+            //                 child.material.needsUpdate = true
+            //             }
+            //         }
+            //     })
+            // }
             pmremGenerator.dispose();
             resolve('环境贴图解析配置完成')
         },
@@ -408,7 +408,7 @@ async function initThreeScene(urls: string[]) {
         useSSAO: false
     })
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1) // 环境光
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.35) // 环境光
     scene.add(ambientLight)
 
     const directionalLight = new THREE.DirectionalLight(0xfffdf6, 5)
@@ -426,7 +426,7 @@ async function initThreeScene(urls: string[]) {
     directionalLight.shadow.camera.near = 300
     directionalLight.shadow.radius = 2
     directionalLight.shadow.bias = -0.0015
-    scene.add(directionalLight)
+    // scene.add(directionalLight)
 
     //初始化背景
     initEnvMap({})
@@ -587,35 +587,21 @@ function addLight(group: THREE.Group) {
     lightBox.name = 'lightBox'
     let position = { x: -35.04560543736986, y: 1.125605617251738, z: -54.4983522125491 }
 
-    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 3)
-    directionalLight.position.set(position.x, position.y, position.z)
-    directionalLight.target.position.set(center.x, center.y, center.z)
-    lightBox.add(directionalLight.target)
+    const directionalLight = new THREE.DirectionalLight(0xfffdf6, 0.9)
+    directionalLight.position.set(-1600, 500, 1200)
     lightBox.add(directionalLight)
 
-    const directionalLight2 = new THREE.DirectionalLight(0xfffdf6, 1.2)
-    position = { x: -39.75941112689964, y: 0.937708701278898, z: -56.669197007802374 }
-    directionalLight2.position.set(position.x, position.y, position.z)
-    // directionalLight2.target.position.set(center.x, center.y, center.z)
-    directionalLight2.target.position.set(position.x, position.y - 10, position.z)
+    const directionalLight2 = new THREE.DirectionalLight(0xfffdf6, 0.5)
+    directionalLight2.position.set(2000,500,1000)
     lightBox.add(directionalLight2)
-    lightBox.add(directionalLight2.target)
-    addLightShadow(directionalLight2)
 
-    position = { x: -45.83234042693757, y: 1.065550923889952, z: -55.56383205194379 }
-    const directionalLight3 = new THREE.DirectionalLight(0xfffdf6, 0.3)
-    directionalLight3.position.set(position.x, position.y, position.z)
-    directionalLight3.target.position.set(center.x, center.y, center.z)
-    // directionalLight3.target.position.set(position.x, position.y - 10, position.z)
+    const directionalLight3 = new THREE.DirectionalLight(0xfffdf6, 0.4)
+    directionalLight3.position.set(-800, 500, -2000)
     lightBox.add(directionalLight3)
-    lightBox.add(directionalLight3.target)
 
-    position = { x: -41.284753900624075, y: 4.7770173140838175, z: -56.821598332646516 }
-    const directionalLight4 = new THREE.DirectionalLight(0xfffdf6, 0.4)
-    directionalLight4.position.set(position.x, position.y, position.z)
-    directionalLight4.target.position.set(center.x, center.y, center.z)
+    const directionalLight4 = new THREE.DirectionalLight(0xfffdf6, 0.2)
+    directionalLight4.position.set(0, 500, 0)
     lightBox.add(directionalLight4)
-    lightBox.add(directionalLight4.target)
 
     if (gui) {
         const directionalLightFolder = gui.addFolder('室内平行光')
