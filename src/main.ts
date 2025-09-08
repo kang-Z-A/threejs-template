@@ -589,33 +589,38 @@ function addLight(group: THREE.Group) {
 
     const directionalLight = new THREE.DirectionalLight(0xfffdf6, 3)
     directionalLight.position.set(position.x, position.y, position.z)
-    directionalLight.target.position.set(center.x, center.y, center.z)
-    lightBox.add(directionalLight.target)
+    // directionalLight.target.position.set(center.x, center.y, center.z)
+    // lightBox.add(directionalLight.target)
     lightBox.add(directionalLight)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight, 5));
 
     const directionalLight2 = new THREE.DirectionalLight(0xfffdf6, 1.2)
     position = { x: -39.75941112689964, y: 0.937708701278898, z: -56.669197007802374 }
     directionalLight2.position.set(position.x, position.y, position.z)
-    // directionalLight2.target.position.set(center.x, center.y, center.z)
-    directionalLight2.target.position.set(position.x, position.y - 10, position.z)
     lightBox.add(directionalLight2)
-    lightBox.add(directionalLight2.target)
-    addLightShadow(directionalLight2)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight2, 5));
+    // directionalLight2.target.position.set(center.x, center.y, center.z)
+    // directionalLight2.target.position.set(position.x, position.y - 10, position.z)
+    // lightBox.add(directionalLight2.target)
+    // addLightShadow(directionalLight2)
 
     position = { x: -45.83234042693757, y: 1.065550923889952, z: -55.56383205194379 }
     const directionalLight3 = new THREE.DirectionalLight(0xfffdf6, 0.3)
     directionalLight3.position.set(position.x, position.y, position.z)
-    directionalLight3.target.position.set(center.x, center.y, center.z)
-    // directionalLight3.target.position.set(position.x, position.y - 10, position.z)
     lightBox.add(directionalLight3)
-    lightBox.add(directionalLight3.target)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight3, 5));
+    // directionalLight3.target.position.set(center.x, center.y, center.z)
+    // directionalLight3.target.position.set(position.x, position.y - 10, position.z)
+    // lightBox.add(directionalLight3.target)
 
+    // position = { x: -41.284753900624075, y: 4.7770173140838175, z: -56.821598332646516 }
     position = { x: -41.284753900624075, y: 4.7770173140838175, z: -56.821598332646516 }
     const directionalLight4 = new THREE.DirectionalLight(0xfffdf6, 0.4)
     directionalLight4.position.set(position.x, position.y, position.z)
-    directionalLight4.target.position.set(center.x, center.y, center.z)
     lightBox.add(directionalLight4)
-    lightBox.add(directionalLight4.target)
+    scene.add(new THREE.DirectionalLightHelper(directionalLight4, 5));
+    // directionalLight4.target.position.set(center.x, center.y, center.z)
+    // lightBox.add(directionalLight4.target)
 
     if (gui) {
         const directionalLightFolder = gui.addFolder('室内平行光')
