@@ -743,12 +743,12 @@ function doAfterLoad(group: THREE.Group, _url: string) {
                 scene.remove(axisHelper)
             }
         })
-        gui.add(options, 'useView1').name('污泥脱水间视角')
-        gui.add(options, 'useView2').name('全厂视角')
         gui.add(options, 'sceneScale').name('场景缩放').min(0.01).max(10).step(0.01).onChange(val => {
             group.scale.set(val, val, val)
             getCenterFromBounding()
         })
+        gui.add(options, 'useView1').name('污泥脱水间视角')
+        gui.add(options, 'useView2').name('全厂视角')
     }
 
     group.traverse(child => {
