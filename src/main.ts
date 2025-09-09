@@ -192,7 +192,6 @@ stats.dom.style.visibility = 'hidden'
 document.body.appendChild(stats.dom);
 
 let envMapTexture: THREE.Texture | null = null
-let envMapTexture2: THREE.Texture | null = null
 let environmentIntensity = 0.5
 
 type initEnvMapOptions = {
@@ -201,7 +200,7 @@ type initEnvMapOptions = {
     fileType?: 'exr' | 'hdr'
 }
 async function initEnvMap(options: initEnvMapOptions) {
-    const { filePath = 'hdr/rostock_laage_airport_2k.hdr', updateMaterials = false, fileType = 'hdr' } = options
+    const { filePath = 'hdr/charolettenbrunn_park_1k.exr', updateMaterials = false, fileType = 'exr' } = options
     return new Promise((resolve, _reject) => {
         // 创建一个PMREMGenerator以生成环境贴图
         var pmremGenerator = new THREE.PMREMGenerator(renderer!);
@@ -226,17 +225,6 @@ async function initEnvMap(options: initEnvMapOptions) {
             // 释放pmremGenerator的资源
             console.log('环境贴图解析配置完成');
 
-            // if (updateMaterials) {
-            //     scene.traverse(child => {
-            //         if (child instanceof THREE.Mesh) {
-            //             if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
-            //                 child.material.envMap = envMapTexture
-            //                 child.material.envMapIntensity = environmentIntensity ?? 1.0
-            //                 child.material.needsUpdate = true
-            //             }
-            //         }
-            //     })
-            // }
             pmremGenerator.dispose();
             resolve('环境贴图解析配置完成')
         },
@@ -497,6 +485,7 @@ function addHDRGui() {
         scene.traverse(child => {
             if (child instanceof THREE.Mesh) {
                 if (child.material instanceof THREE.MeshPhysicalMaterial || child.material instanceof THREE.MeshStandardMaterial) {
+                    child.material.envMap = envMapTexture
                     child.material.envMapIntensity = options.envMapIntensity
                     child.material.needsUpdate = true
                 }
@@ -663,7 +652,7 @@ const options = {
     showLight: true,
     showStats: true,
     showAxis: true,
-    envMapIntensity: 1.0,
+    envMapIntensity: 0.5,
     sceneScale: 1.0,
     useView1: () => changeView(0),
     useView2: () => changeView(1),
@@ -766,7 +755,7 @@ function doAfterLoad(group: THREE.Group, _url: string) {
             if (!Array.isArray(child.material)) {
                 const mat = child.material as THREE.MeshStandardMaterial
                 mat.vertexColors = false
-                if (!mat.metalness || mat.metalness === 0 || mat.metalness === 1) mat.metalness = 0.5
+                if (mat.metalness === 1) mat.metalness = 0.5
                 const materialNames = ['equ_1_metal_white.002', '新新冷灰']
                 if (materialNames.includes(mat.name)) {
                     mat.envMap = envMapTexture
