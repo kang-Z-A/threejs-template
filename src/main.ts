@@ -436,6 +436,13 @@ async function initThreeScene(urls: string[]) {
 
     if (gui) {
         const outdoorLightFolder = gui.addFolder('室外平行光')
+        outdoorLightFolder.add(options, 'disableLight').name('禁用').onChange(val => {
+            if(val){
+                directionalLight.removeFromParent()
+            }else{
+                scene.add(directionalLight)
+            }
+        })
         outdoorLightFolder.add(directionalLight, 'intensity').name('灯光强度').min(0).max(15).step(0.1)
         outdoorLightFolder.add(directionalLight.shadow, 'bias').name('bias').min(-0.5).max(0.5).step(0.0000001)
         outdoorLightFolder.add(directionalLight.position, 'x').name('平行光位置x').min(-500).max(500).step(0.1)
@@ -588,7 +595,6 @@ const mesh = new THREE.Mesh(geometry, material)
 function addLight(group: THREE.Group) {
     const lightBox = new THREE.Group()
     lightBox.name = 'lightBox'
-    let position = { x: -35.04560543736986, y: 1.125605617251738, z: -54.4983522125491 }
 
     const directionalLight = new THREE.DirectionalLight(0xfffdf6, 0.9)
     directionalLight.position.set(-1600, 500, 1200)
@@ -653,6 +659,7 @@ const views = [
 ]
 let lightBox = null as THREE.Group | null
 const options = {
+    disableLight:false,
     showLight: true,
     showStats: true,
     showAxis: true,
@@ -721,10 +728,10 @@ function doAfterLoad(group: THREE.Group, _url: string) {
     if (gui) {
         gui.add(options, 'showLight').name('展示污泥脱水间灯光').onChange(val => {
             if (val) {
-                lightBox && group.add(lightBox)
+                lightBox && scene.add(lightBox)
                 lightFolder?.show()
             } else {
-                lightBox && group.remove(lightBox)
+                lightBox && scene.remove(lightBox)
                 lightFolder?.hide()
             }
         })
