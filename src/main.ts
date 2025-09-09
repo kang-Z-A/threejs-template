@@ -766,6 +766,7 @@ function doAfterLoad(group: THREE.Group, _url: string) {
             if (!Array.isArray(child.material)) {
                 const mat = child.material as THREE.MeshStandardMaterial
                 mat.vertexColors = false
+                if (!mat.metalness || mat.metalness === 0 || mat.metalness === 1) mat.metalness = 0.5
                 const materialNames = ['equ_1_metal_white.002', '新新冷灰']
                 if (materialNames.includes(mat.name)) {
                     mat.envMap = envMapTexture
