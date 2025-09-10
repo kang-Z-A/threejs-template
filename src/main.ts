@@ -648,7 +648,7 @@ const views = [
 ]
 let lightBox = null as THREE.Group | null
 const options = {
-    disableLight:false,
+    disableLight:true,
     showLight: true,
     showStats: true,
     showAxis: true,
